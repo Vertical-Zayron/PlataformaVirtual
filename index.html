@@ -346,6 +346,21 @@ footer{margin-top:56px;border-top:1px solid var(--line);background:rgba(255,255,
 }
 @keyframes tin{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 
+/* ════════ MODAL DE HERRAMIENTA (pantalla emergente) ════════ */
+.appmodal-backdrop{position:fixed;inset:0;z-index:95;background:rgba(15,24,34,.55);backdrop-filter:blur(3px);display:grid;place-items:center;padding:24px;animation:amfade .2s}
+@keyframes amfade{from{opacity:0}to{opacity:1}}
+.appmodal{width:min(1400px,95vw);height:min(900px,93vh);background:#fff;border-radius:16px;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;overflow:hidden;animation:amup .25s cubic-bezier(.2,.7,.2,1)}
+@keyframes amup{from{transform:translateY(14px);opacity:.5}to{transform:none;opacity:1}}
+.appmodal-head{display:flex;align-items:center;gap:11px;padding:11px 14px;border-bottom:1px solid var(--line);flex-shrink:0}
+.appmodal-head .amh-ic{width:34px;height:34px;border-radius:9px;background:var(--wave-soft);color:var(--wave-ink);display:grid;place-items:center;flex-shrink:0}
+.appmodal-head .amh-t{font-family:var(--font-display);font-weight:700;font-size:15px;letter-spacing:-.01em}
+.appmodal-head .amh-sp{flex:1}
+.appmodal-head .amh-btn{width:36px;height:36px;border-radius:9px;display:grid;place-items:center;color:var(--muted);transition:.15s}
+.appmodal-head .amh-btn:hover{background:var(--surface-2);color:var(--ink)}
+.appmodal-body{flex:1;position:relative;background:var(--surface-2)}
+.appmodal-body iframe{position:absolute;inset:0;width:100%;height:100%;border:none}
+@media(max-width:680px){.appmodal{width:100vw;height:100vh;height:100dvh;border-radius:0}.appmodal-backdrop{padding:0}}
+
 /* ════════ RESPONSIVE ════════ */
 @media(max-width:900px){
   .channels{grid-template-columns:1fr}
@@ -557,7 +572,7 @@ const ERP_CONFIG = {
       tools:[
         // Las cotizaciones de WaveSense varían según el dispositivo:
         // se dejan previstas para enlazar cada cotizador especializado.
-        {id:"ws-cot-a", name:"Cotizador — Equipo A", desc:"Configurador y cotización del dispositivo A.", url:"", icon:"calc", status:"soon"},
+        {id:"ws-cot-a", name:"Cotizador — Energy Monitor", desc:"Configurador y cotización del equipo Energy Monitor.", url:"https://wavesensecr.github.io/plataformaCotizacion/", icon:"calc", status:"live", popup:true},
         {id:"ws-cot-b", name:"Cotizador — Equipo B", desc:"Configurador y cotización del dispositivo B.", url:"", icon:"calc", status:"soon"},
         {id:"ws-cot-c", name:"Cotizador — Equipo C", desc:"Variante con lógica de transductores CT/VT.", url:"", icon:"wave", status:"soon"},
         {id:"ws-energy", name:"Energy Monitor", desc:"Configurador de tableros + cotización multipágina.", url:"", icon:"chart", status:"soon"},
@@ -633,7 +648,27 @@ function toolHref(t){return (SITE.isPages&&t.urlPages)?t.urlPages:t.url;}
 function launchTool(t){
   const href=toolHref(t);
   if(t.status==="soon"||!href){toast(`“${t.name}” aún no está enlazada. Edita su <code>url</code> en ERP_CONFIG.`);return;}
+  if(t.popup){openAppModal(t,href);return;}
   window.location.href=href;
+}
+function openAppModal(t,href){
+  const bd=document.createElement("div");bd.className="appmodal-backdrop";bd.id="appModal";
+  bd.innerHTML=`<div class="appmodal">
+    <div class="appmodal-head">
+      <div class="amh-ic">${icon(t.icon)}</div>
+      <div class="amh-t">${t.name}</div>
+      <div class="amh-sp"></div>
+      <a class="amh-btn" href="${href}" target="_blank" rel="noopener" title="Abrir en pestaña nueva"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M15 3h6v6M10 14 21 3M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg></a>
+      <button class="amh-btn" id="amClose" title="Cerrar"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="appmodal-body"><iframe src="${href}" allow="clipboard-write; geolocation; camera; microphone"></iframe></div>
+  </div>`;
+  document.body.appendChild(bd);
+  const close=()=>{bd.remove();document.removeEventListener("keydown",onKey);};
+  const onKey=e=>{if(e.key==="Escape")close();};
+  document.addEventListener("keydown",onKey);
+  bd.addEventListener("click",e=>{if(e.target===bd)close();});
+  bd.querySelector("#amClose").onclick=close;
 }
 
 function renderChannels(){
