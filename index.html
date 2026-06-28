@@ -3,296 +3,193 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>V-Xylog · ERP</title>
+<title>Contactos · V-Sayron ERP</title>
 
 <!-- ════════════════════════════════════════════════════════════════
-     VERTICAL XYLOG — PÁGINA PRINCIPAL DEL ERP
-     Archivo único para GitHub Pages. Backend: Google Apps Script + Drive.
-     Auth: Google Identity Services. Verificación de acceso vía Drive API.
+     VERTICAL SAYRON ERP — HERRAMIENTA: CONTACTOS (clientes, proveedores…)
+     Archivo único para GitHub Pages. Datos en Drive vía Apps Script.
+     Esta herramienta guarda en su PROPIA carpeta: colección "contactos".
 
-     >>> CONFIGURACIÓN: ver el objeto ERP_CONFIG al inicio del <script>.
-         Llena CLIENT_ID, DRIVE_FOLDER_ID y (opcional) APPS_SCRIPT_URL.
+     >>> CONFIGURA APPS_SCRIPT_URL para guardar en Drive.
+         Sin backend, funciona igual guardando en este navegador.
      ════════════════════════════════════════════════════════════════ -->
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 
+<!-- Mapas: Leaflet + OpenStreetMap (sin llave) -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
 <style>
 :root{
-  /* ── Estructura / tinta ── */
   --ink:#16202c; --ink-2:#2b3947; --muted:#61707f; --faint:#8c99a6;
   --paper:#f5f7f9; --surface:#ffffff; --surface-2:#fbfcfd;
   --line:#e4e8ec; --line-strong:#d2d8de;
-
-  /* ── Acentos por división ── */
   --wave:#0e94a8; --wave-bright:#16c6dc; --wave-soft:#e6f7fa; --wave-ink:#06525f;
   --eps:#2d54d4; --eps-bright:#4e7bff; --eps-soft:#eaf0ff; --eps-ink:#16307e;
-
-  /* ── Estado ── */
-  --signal:#dd8a2b; --ok:#1e9e63; --warn:#d24c47;
-
+  --signal:#dd8a2b; --signal-soft:#fdf2e3; --signal-ink:#8a5a16;
+  --ok:#1e9e63; --warn:#d24c47;
   --shadow-sm:0 1px 2px rgba(22,32,44,.05),0 1px 1px rgba(22,32,44,.04);
   --shadow-md:0 6px 24px -10px rgba(22,32,44,.18),0 2px 6px -2px rgba(22,32,44,.08);
   --shadow-lg:0 30px 60px -20px rgba(22,32,44,.35);
-
   --font-display:'Archivo',system-ui,sans-serif;
   --font-ui:'IBM Plex Sans',system-ui,sans-serif;
   --font-mono:'IBM Plex Mono',ui-monospace,monospace;
-
   --r:14px; --r-sm:10px;
 }
-
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
-body{
-  font-family:var(--font-ui); color:var(--ink); background:var(--paper);
-  -webkit-font-smoothing:antialiased; line-height:1.5;
-  background-image:
-    radial-gradient(1200px 600px at 85% -8%, rgba(45,84,212,.05), transparent 60%),
-    radial-gradient(900px 500px at 5% -5%, rgba(14,148,168,.06), transparent 55%);
-}
+body{font-family:var(--font-ui);color:var(--ink);background:var(--paper);-webkit-font-smoothing:antialiased;line-height:1.5;
+  background-image:radial-gradient(1100px 560px at 88% -8%,rgba(45,84,212,.05),transparent 60%),radial-gradient(900px 500px at 4% -5%,rgba(14,148,168,.06),transparent 55%);}
 a{color:inherit;text-decoration:none}
 button{font-family:inherit;cursor:pointer;border:none;background:none}
 .mono{font-family:var(--font-mono)}
 [hidden]{display:none !important}
+:focus-visible{outline:2px solid var(--wave);outline-offset:2px;border-radius:4px}
 
-/* ════════ TOP BAR ════════ */
-.topbar{
-  position:sticky; top:0; z-index:40;
-  display:flex; align-items:center; gap:18px;
-  padding:0 24px; height:60px;
-  background:rgba(255,255,255,.82); backdrop-filter:saturate(160%) blur(12px);
-  border-bottom:1px solid var(--line);
-}
-.brand{display:flex; align-items:center; gap:11px; flex-shrink:0}
+/* ════ TOP BAR ════ */
+.topbar{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:16px;padding:0 24px;height:60px;
+  background:rgba(255,255,255,.82);backdrop-filter:saturate(160%) blur(12px);border-bottom:1px solid var(--line);}
+.brand{display:flex;align-items:center;gap:11px;flex-shrink:0}
 .brand .glyph{width:30px;height:30px;display:block}
 .brand .wm{display:flex;flex-direction:column;line-height:1}
-.brand .wm .a{
-  font-family:var(--font-display); font-weight:900; letter-spacing:-.02em;
-  font-size:16px; color:var(--ink);
-}
-.brand .wm .b{
-  font-family:var(--font-mono); font-size:9.5px; letter-spacing:.22em;
-  color:var(--faint); margin-top:3px; text-transform:uppercase;
-}
+.brand .wm .a{font-family:var(--font-display);font-weight:900;letter-spacing:-.02em;font-size:16px}
+.brand .wm .b{font-family:var(--font-mono);font-size:9.5px;letter-spacing:.22em;color:var(--faint);margin-top:3px;text-transform:uppercase}
 .topbar .sep{width:1px;height:26px;background:var(--line);flex-shrink:0}
-
-.searchbox{
-  flex:1; max-width:420px; display:flex; align-items:center; gap:9px;
-  padding:0 12px; height:38px; border:1px solid var(--line);
-  border-radius:10px; background:var(--surface-2); color:var(--muted);
-  transition:border-color .15s, background .15s;
-}
-.searchbox:focus-within{border-color:var(--wave); background:#fff}
-.searchbox input{
-  flex:1; border:none; outline:none; background:none;
-  font-family:var(--font-ui); font-size:14px; color:var(--ink);
-}
-.searchbox kbd{
-  font-family:var(--font-mono); font-size:11px; color:var(--faint);
-  border:1px solid var(--line-strong); border-bottom-width:2px;
-  border-radius:6px; padding:1px 6px; background:#fff;
-}
+.backhub{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--muted);padding:7px 11px;border-radius:9px;transition:.15s}
+.backhub:hover{background:var(--surface-2);color:var(--ink)}
+.searchbox{flex:1;max-width:420px;display:flex;align-items:center;gap:9px;padding:0 12px;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);color:var(--muted);transition:.15s}
+.searchbox:focus-within{border-color:var(--wave);background:#fff}
+.searchbox input{flex:1;border:none;outline:none;background:none;font-family:var(--font-ui);font-size:14px;color:var(--ink)}
+.searchbox kbd{font-family:var(--font-mono);font-size:11px;color:var(--faint);border:1px solid var(--line-strong);border-bottom-width:2px;border-radius:6px;padding:1px 6px;background:#fff}
 .topbar .spacer{flex:1}
-
-.iconbtn{
-  width:38px;height:38px;border-radius:10px;border:1px solid transparent;
-  display:grid;place-items:center;color:var(--muted);position:relative;
-  transition:background .15s,color .15s,border-color .15s;
-}
-.iconbtn:hover{background:var(--surface-2);color:var(--ink);border-color:var(--line)}
-.iconbtn .dot{
-  position:absolute;top:8px;right:9px;width:7px;height:7px;border-radius:50%;
-  background:var(--signal);border:2px solid #fff;
-}
-
-.userchip{
-  display:flex;align-items:center;gap:9px;height:40px;padding:3px 10px 3px 4px;
-  border:1px solid var(--line);border-radius:999px;background:var(--surface);
-  transition:box-shadow .15s,border-color .15s;
-}
+.userchip{display:flex;align-items:center;gap:9px;height:40px;padding:3px 10px 3px 4px;border:1px solid var(--line);border-radius:999px;background:var(--surface);transition:.15s}
 .userchip:hover{box-shadow:var(--shadow-sm);border-color:var(--line-strong)}
-.userchip img,.userchip .av{
-  width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;
-  background:var(--wave-soft);display:grid;place-items:center;
-  font-family:var(--font-display);font-weight:700;font-size:13px;color:var(--wave-ink);
-}
+.userchip img,.userchip .av{width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;background:var(--wave-soft);display:grid;place-items:center;font-family:var(--font-display);font-weight:700;font-size:13px;color:var(--wave-ink)}
 .userchip .who{display:flex;flex-direction:column;line-height:1.15;max-width:150px}
 .userchip .who .n{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .userchip .who .r{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
-
-/* ════════ DROPDOWN ════════ */
-.menu{
-  position:absolute;top:54px;right:24px;z-index:50;width:280px;
-  background:#fff;border:1px solid var(--line);border-radius:var(--r);
-  box-shadow:var(--shadow-md);padding:8px;
-}
+.menu{position:absolute;top:54px;right:24px;z-index:50;width:280px;background:#fff;border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow-md);padding:8px}
 .menu .mhead{padding:12px 12px 10px;border-bottom:1px solid var(--line);margin-bottom:6px}
 .menu .mhead .e{font-size:13px;font-weight:600}
 .menu .mhead .s{font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:3px}
-.menu button.mi{
-  width:100%;display:flex;align-items:center;gap:11px;padding:10px 12px;
-  border-radius:9px;font-size:13.5px;color:var(--ink-2);text-align:left;
-}
+.menu button.mi{width:100%;display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:9px;font-size:13.5px;color:var(--ink-2);text-align:left}
 .menu button.mi:hover{background:var(--surface-2)}
 .menu button.mi svg{color:var(--faint)}
-.menu button.mi.danger{color:var(--warn)}
-.menu button.mi.danger svg{color:var(--warn)}
+.menu button.mi.danger,.menu button.mi.danger svg{color:var(--warn)}
 
-/* ════════ LAYOUT ════════ */
+/* ════ LAYOUT ════ */
 .wrap{max-width:1220px;margin:0 auto;padding:0 24px}
+.head{padding:32px 0 18px}
+.eyebrow{font-family:var(--font-mono);font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--wave);font-weight:500}
+.head h1{font-family:var(--font-display);font-weight:800;letter-spacing:-.025em;font-size:clamp(26px,3.6vw,36px);margin:11px 0 4px;line-height:1.04}
+.head .sub{color:var(--muted);font-size:14.5px}
 
-/* ── HERO / readout ── */
-.hero{padding:38px 0 26px;position:relative}
-.eyebrow{
-  font-family:var(--font-mono);font-size:11px;letter-spacing:.24em;
-  text-transform:uppercase;color:var(--wave);font-weight:500;
-}
-.hero h1{
-  font-family:var(--font-display);font-weight:800;letter-spacing:-.025em;
-  font-size:clamp(28px,4vw,40px);margin:12px 0 6px;line-height:1.04;
-}
-.hero h1 em{font-style:normal;color:var(--muted);font-weight:600}
-.hero .sub{color:var(--muted);font-size:15px;max-width:560px}
-
-/* readout strip (firma) */
-.readout{
-  margin-top:24px;display:flex;flex-wrap:wrap;gap:0;
-  border:1px solid var(--line);border-radius:var(--r);overflow:hidden;
-  background:linear-gradient(180deg,#fff,var(--surface-2));position:relative;
-}
-.readout .wavebg{position:absolute;inset:0;width:100%;height:100%;opacity:.5;pointer-events:none}
-.stat{
-  flex:1;min-width:165px;padding:16px 20px;position:relative;z-index:1;
-  border-right:1px solid var(--line);
-}
+.readout{margin-top:22px;display:flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:linear-gradient(180deg,#fff,var(--surface-2))}
+.stat{flex:1;min-width:130px;padding:14px 18px;border-right:1px solid var(--line)}
 .stat:last-child{border-right:none}
-.stat .lab{
-  font-family:var(--font-mono);font-size:10.5px;letter-spacing:.14em;
-  text-transform:uppercase;color:var(--faint);display:flex;align-items:center;gap:7px;
-}
-.stat .val{font-family:var(--font-display);font-weight:700;font-size:19px;margin-top:7px;letter-spacing:-.01em}
-.stat .val.sm{font-size:15px}
-.pip{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0}
-.pip.ok{background:var(--ok);box-shadow:0 0 0 3px rgba(30,158,99,.16)}
-.pip.warn{background:var(--signal);box-shadow:0 0 0 3px rgba(221,138,43,.16)}
-.pip.off{background:var(--faint);box-shadow:0 0 0 3px rgba(140,153,166,.16)}
+.stat .lab{font-family:var(--font-mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);display:flex;align-items:center;gap:7px}
+.stat .val{font-family:var(--font-display);font-weight:800;font-size:24px;margin-top:5px;letter-spacing:-.02em}
+.stat .val.sm{font-size:14px;font-weight:600}
+.pip{width:8px;height:8px;border-radius:50%;display:inline-block}
+.pip.ok{background:var(--ok)} .pip.warn{background:var(--signal)} .pip.off{background:var(--faint)}
 
-/* ── section heading ── */
-.sec{padding:8px 0 4px}
-.sec-h{display:flex;align-items:baseline;gap:14px;margin:34px 0 16px}
-.sec-h .t{font-family:var(--font-display);font-weight:700;font-size:13px;letter-spacing:.04em;text-transform:uppercase}
-.sec-h .ln{flex:1;height:1px;background:var(--line)}
-.sec-h .c{font-family:var(--font-mono);font-size:11px;color:var(--faint)}
+/* ════ TOOLBAR ════ */
+.toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:22px 0 6px}
+.chips{display:flex;gap:7px;flex-wrap:wrap}
+.fchip{display:flex;align-items:center;gap:7px;height:34px;padding:0 13px;border:1px solid var(--line);border-radius:999px;background:#fff;font-size:13px;font-weight:500;color:var(--ink-2);transition:.15s}
+.fchip:hover{border-color:var(--line-strong)}
+.fchip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.fchip .cnt{font-family:var(--font-mono);font-size:11px;opacity:.7}
+.toolbar .spacer{flex:1}
+.toggle{display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:#fff}
+.toggle button{padding:8px 13px;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:7px}
+.toggle button.on{background:var(--surface-2);color:var(--ink);font-weight:600}
+.toggle button+button{border-left:1px solid var(--line)}
+.btn{display:flex;align-items:center;gap:8px;height:38px;padding:0 15px;border-radius:10px;font-size:13.5px;font-weight:600;transition:.15s;border:1px solid var(--line);background:#fff;color:var(--ink-2)}
+.btn:hover{border-color:var(--line-strong);box-shadow:var(--shadow-sm)}
+.btn.primary{background:var(--ink);color:#fff;border-color:var(--ink)}
+.btn.primary:hover{background:#0c1620}
+.btn.icon{padding:0;width:38px;justify-content:center}
 
-/* ── quick access chips ── */
-.chips{display:flex;flex-wrap:wrap;gap:9px;margin-bottom:6px}
-.chip{
-  display:flex;align-items:center;gap:8px;height:34px;padding:0 13px;
-  border:1px solid var(--line);border-radius:999px;background:#fff;
-  font-size:13px;font-weight:500;color:var(--ink-2);transition:.15s;
-}
-.chip:hover{border-color:var(--line-strong);box-shadow:var(--shadow-sm);transform:translateY(-1px)}
-.chip svg{color:var(--faint)}
-.chip.empty{color:var(--faint);border-style:dashed;cursor:default}
-.chip.empty:hover{transform:none;box-shadow:none;border-color:var(--line)}
+.banner{display:flex;align-items:center;gap:11px;padding:12px 16px;border-radius:var(--r);font-size:13px;margin:14px 0 2px;background:var(--signal-soft);color:var(--signal-ink);border:1px solid #f5e3c2}
+.banner svg{flex-shrink:0}
+.banner b{font-weight:600}
 
-/* ════════ CANALES / DIVISIONES (firma) ════════ */
-.channels{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:6px}
-.channel{
-  border:1px solid var(--line);border-radius:18px;background:var(--surface);
-  overflow:hidden;box-shadow:var(--shadow-sm);position:relative;
-}
-.channel::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px}
-.channel.wave::before{background:linear-gradient(180deg,var(--wave-bright),var(--wave))}
-.channel.eps::before{background:linear-gradient(180deg,var(--eps-bright),var(--eps))}
+/* ════ CONTENT ════ */
+.content{padding:18px 0 10px;min-height:200px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}
+.contact{border:1px solid var(--line);border-radius:var(--r);background:var(--surface);padding:16px;cursor:pointer;transition:transform .14s,box-shadow .14s,border-color .14s;position:relative}
+.contact:hover{transform:translateY(-3px);box-shadow:var(--shadow-md);border-color:var(--line-strong)}
+.c-top{display:flex;align-items:flex-start;gap:12px}
+.avatar{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;flex-shrink:0;font-family:var(--font-display);font-weight:700;font-size:15px;background:var(--wave-soft);color:var(--wave-ink)}
+.avatar.t-cliente{background:var(--wave-soft);color:var(--wave-ink)}
+.avatar.t-proveedor{background:var(--eps-soft);color:var(--eps-ink)}
+.avatar.t-prospecto{background:var(--signal-soft);color:var(--signal-ink)}
+.avatar.t-otro{background:#eef1f4;color:var(--muted)}
+.c-id{flex:1;min-width:0}
+.c-name{font-weight:700;font-size:15px;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.c-sub{font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
+.type-badge{font-family:var(--font-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:3px 7px;border-radius:6px;font-weight:500;flex-shrink:0}
+.type-badge.t-cliente{background:var(--wave-soft);color:var(--wave-ink)}
+.type-badge.t-proveedor{background:var(--eps-soft);color:var(--eps-ink)}
+.type-badge.t-prospecto{background:var(--signal-soft);color:var(--signal-ink)}
+.type-badge.t-otro{background:#eef1f4;color:var(--muted)}
+.c-fields{margin-top:13px;display:flex;flex-direction:column;gap:6px}
+.c-row{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--ink-2);min-width:0}
+.c-row svg{color:var(--faint);flex-shrink:0}
+.c-row span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.c-row.met{color:var(--muted);font-size:11.5px}
+.c-tags{margin-top:11px;display:flex;flex-wrap:wrap;gap:5px}
+.tag{font-size:10.5px;padding:2px 8px;border-radius:6px;background:var(--paper);color:var(--muted);border:1px solid var(--line)}
 
-.ch-head{padding:20px 22px 16px;border-bottom:1px solid var(--line);position:relative}
-.ch-head .badge{
-  font-family:var(--font-mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;
-  padding:3px 8px;border-radius:6px;display:inline-block;font-weight:500;
-}
-.channel.wave .badge{background:var(--wave-soft);color:var(--wave-ink)}
-.channel.eps .badge{background:var(--eps-soft);color:var(--eps-ink)}
-.ch-head h2{font-family:var(--font-display);font-weight:800;font-size:22px;letter-spacing:-.02em;margin:11px 0 4px}
-.ch-head .d{font-size:13px;color:var(--muted)}
-.ch-head .scope{position:absolute;right:18px;top:18px;width:74px;height:30px;opacity:.8}
+/* company view */
+.company-group{margin-bottom:26px}
+.company-head{display:flex;align-items:center;gap:12px;margin:0 0 13px}
+.company-head .cg-ic{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;background:var(--ink);color:#fff;flex-shrink:0}
+.company-head .cg-name{font-family:var(--font-display);font-weight:700;font-size:16px;letter-spacing:-.01em}
+.company-head .cg-count{font-family:var(--font-mono);font-size:11px;color:var(--faint);padding:2px 8px;border:1px solid var(--line);border-radius:999px}
+.company-head .cg-ln{flex:1;height:1px;background:var(--line)}
 
-.toolgrid{padding:14px;display:grid;grid-template-columns:1fr 1fr;gap:11px}
-.tool{
-  display:flex;flex-direction:column;gap:0;padding:15px;border-radius:var(--r-sm);
-  border:1px solid var(--line);background:var(--surface-2);
-  transition:transform .14s,box-shadow .14s,border-color .14s,background .14s;
-  position:relative;min-height:118px;
-}
-.tool.live:hover{transform:translateY(-3px);box-shadow:var(--shadow-md);background:#fff}
-.channel.wave .tool.live:hover{border-color:var(--wave)}
-.channel.eps .tool.live:hover{border-color:var(--eps)}
-.tool.soon{border-style:dashed;background:transparent;cursor:default}
-.tool .ic{
-  width:38px;height:38px;border-radius:10px;display:grid;place-items:center;margin-bottom:11px;
-}
-.channel.wave .tool .ic{background:var(--wave-soft);color:var(--wave-ink)}
-.channel.eps .tool .ic{background:var(--eps-soft);color:var(--eps-ink)}
-.tool.soon .ic{background:#eef1f4;color:var(--faint)}
-.tool .nm{font-weight:600;font-size:14px;letter-spacing:-.01em;display:flex;align-items:center;gap:7px}
-.tool .ds{font-size:12px;color:var(--muted);margin-top:4px;flex:1}
-.tool .fav{
-  position:absolute;top:11px;right:11px;width:26px;height:26px;border-radius:7px;
-  display:grid;place-items:center;color:var(--faint);opacity:0;transition:.15s;
-}
-.tool:hover .fav{opacity:1}
-.tool .fav.on{opacity:1;color:var(--signal)}
-.tool .fav:hover{background:#fff;color:var(--signal)}
+.empty{text-align:center;padding:60px 20px;color:var(--faint)}
+.empty .ei{width:54px;height:54px;border-radius:14px;background:var(--surface);border:1px solid var(--line);display:grid;place-items:center;margin:0 auto 16px;color:var(--muted)}
+.empty h3{font-family:var(--font-display);font-weight:700;color:var(--ink-2);font-size:17px;margin:0 0 6px}
+.empty p{margin:0 0 18px;font-size:14px}
+.loading{display:flex;align-items:center;justify-content:center;gap:11px;padding:60px;color:var(--muted);font-size:14px}
+.spin{width:16px;height:16px;border:2px solid var(--line-strong);border-top-color:var(--wave);border-radius:50%;animation:sp .7s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
 
-.tag{
-  font-family:var(--font-mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;
-  padding:2px 6px;border-radius:5px;font-weight:500;
-}
-.tag.beta{background:#fdf2e3;color:var(--signal)}
-.tag.soon{background:#eef1f4;color:var(--faint)}
-.tag.live{background:#e8f6ee;color:var(--ok)}
+/* ════ SLIDE-OVER FORM ════ */
+.backdrop{position:fixed;inset:0;z-index:80;background:rgba(15,24,34,.4);backdrop-filter:blur(2px);animation:fade .2s}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.sheet{position:fixed;top:0;right:0;bottom:0;z-index:90;width:460px;max-width:94vw;background:#fff;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;animation:slide .25s cubic-bezier(.2,.7,.2,1)}
+@keyframes slide{from{transform:translateX(100%)}to{transform:none}}
+.sheet-head{display:flex;align-items:center;gap:12px;padding:20px 22px;border-bottom:1px solid var(--line)}
+.sheet-head h2{font-family:var(--font-display);font-weight:800;font-size:18px;letter-spacing:-.02em;flex:1}
+.sheet-body{flex:1;overflow:auto;padding:20px 22px}
+.sheet-foot{display:flex;gap:10px;padding:16px 22px;border-top:1px solid var(--line);background:var(--surface-2)}
+.sheet-foot .spacer{flex:1}
+.field{margin-bottom:15px}
+.field label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin-bottom:6px}
+.field label .req{color:var(--warn)}
+.field input,.field select,.field textarea{width:100%;border:1px solid var(--line-strong);border-radius:9px;padding:10px 12px;font-family:var(--font-ui);font-size:14px;color:var(--ink);background:#fff;transition:border-color .15s}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--wave);box-shadow:0 0 0 3px var(--wave-soft)}
+.field textarea{resize:vertical;min-height:74px}
+.field.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field.row2 .field{margin:0}
+.seg{display:flex;gap:7px;flex-wrap:wrap}
+.seg label{display:flex;align-items:center;gap:7px;cursor:pointer;border:1px solid var(--line-strong);border-radius:9px;padding:8px 12px;font-size:13px;font-weight:500;transition:.15s;margin:0}
+.seg label:hover{border-color:var(--muted)}
+.seg input{display:none}
+.seg label.sel{border-color:var(--ink);background:var(--ink);color:#fff}
+.iconbtn{width:36px;height:36px;border-radius:9px;display:grid;place-items:center;color:var(--muted);transition:.15s}
+.iconbtn:hover{background:var(--surface-2);color:var(--ink)}
 
-.addtool{
-  display:grid;place-items:center;border:1px dashed var(--line-strong);border-radius:var(--r-sm);
-  color:var(--faint);font-size:12.5px;min-height:118px;gap:8px;background:transparent;
-  font-family:var(--font-mono);letter-spacing:.04em;transition:.15s;
-}
-.addtool:hover{border-color:var(--muted);color:var(--muted)}
-
-/* ── shared modules ── */
-.modgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:14px}
-.mod{
-  display:flex;gap:14px;padding:18px;border-radius:var(--r);border:1px solid var(--line);
-  background:var(--surface);transition:transform .14s,box-shadow .14s,border-color .14s;align-items:flex-start;
-}
-.mod.live:hover{transform:translateY(-3px);box-shadow:var(--shadow-md);border-color:var(--line-strong)}
-.mod.soon{border-style:dashed;background:transparent}
-.mod .mi{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;flex-shrink:0;background:var(--paper);color:var(--ink-2)}
-.mod.soon .mi{color:var(--faint)}
-.mod .mt{font-weight:600;font-size:15px;letter-spacing:-.01em;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.mod .md{font-size:12.5px;color:var(--muted);margin-top:4px}
-
-/* ── footer ── */
-footer{margin-top:56px;border-top:1px solid var(--line);background:rgba(255,255,255,.5)}
-.foot{display:flex;flex-wrap:wrap;gap:20px;align-items:center;padding:20px 0;font-family:var(--font-mono);font-size:11.5px;color:var(--faint)}
-.foot .fb{display:flex;align-items:center;gap:7px}
-.foot .spacer{flex:1}
-.foot a:hover{color:var(--ink)}
-
-/* ════════ GATE / LOGIN OVERLAY ════════ */
-.gate{
-  position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:24px;
-  background:
-    radial-gradient(900px 480px at 80% 0%,rgba(45,84,212,.10),transparent 60%),
-    radial-gradient(800px 460px at 10% 100%,rgba(14,148,168,.12),transparent 60%),
-    #0f1822;
-}
-.card{
-  width:100%;max-width:430px;background:#fff;border-radius:20px;
-  box-shadow:var(--shadow-lg);overflow:hidden;
-}
+/* ════ GATE ════ */
+.gate{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:24px;background:radial-gradient(900px 480px at 80% 0%,rgba(45,84,212,.10),transparent 60%),radial-gradient(800px 460px at 10% 100%,rgba(14,148,168,.12),transparent 60%),#0f1822}
+.card{width:100%;max-width:430px;background:#fff;border-radius:20px;box-shadow:var(--shadow-lg);overflow:hidden}
 .card .top{padding:30px 32px 22px;border-bottom:1px solid var(--line);text-align:center}
 .card .top .glyph{width:46px;height:46px;margin:0 auto 14px;display:block}
 .card .top .a{font-family:var(--font-display);font-weight:900;font-size:21px;letter-spacing:-.02em}
@@ -300,148 +197,112 @@ footer{margin-top:56px;border-top:1px solid var(--line);background:rgba(255,255,
 .card .body{padding:26px 32px 30px}
 .card h3{font-family:var(--font-display);font-weight:700;font-size:17px;margin:0 0 6px;text-align:center}
 .card .lead{font-size:13.5px;color:var(--muted);text-align:center;margin:0 0 22px;line-height:1.5}
-
-.gbtn{
-  width:100%;height:48px;border-radius:11px;border:1px solid var(--line-strong);
-  background:#fff;display:flex;align-items:center;justify-content:center;gap:11px;
-  font-size:15px;font-weight:600;color:var(--ink);transition:.15s;
-}
+.gbtn{width:100%;height:48px;border-radius:11px;border:1px solid var(--line-strong);background:#fff;display:flex;align-items:center;justify-content:center;gap:11px;font-size:15px;font-weight:600;color:var(--ink);transition:.15s}
 .gbtn:hover{box-shadow:var(--shadow-sm);border-color:var(--muted);background:var(--surface-2)}
 .gbtn:disabled{opacity:.5;cursor:default}
-
 .steps{margin-top:22px;display:flex;flex-direction:column;gap:2px}
 .step{display:flex;align-items:center;gap:12px;padding:10px 4px;font-size:13px;color:var(--faint)}
-.step .sx{
-  width:24px;height:24px;border-radius:50%;border:1.5px solid var(--line-strong);
-  display:grid;place-items:center;flex-shrink:0;font-family:var(--font-mono);font-size:11px;
-  transition:.2s;
-}
+.step .sx{width:24px;height:24px;border-radius:50%;border:1.5px solid var(--line-strong);display:grid;place-items:center;flex-shrink:0;font-family:var(--font-mono);font-size:11px;transition:.2s}
 .step.active{color:var(--ink-2);font-weight:500}
 .step.active .sx{border-color:var(--wave);color:var(--wave)}
 .step.done{color:var(--muted)}
 .step.done .sx{background:var(--ok);border-color:var(--ok);color:#fff}
-.step.fail .sx{background:var(--warn);border-color:var(--warn);color:#fff}
 .step.fail{color:var(--warn)}
-.spin{width:14px;height:14px;border:2px solid var(--line-strong);border-top-color:var(--wave);border-radius:50%;animation:sp .7s linear infinite}
-@keyframes sp{to{transform:rotate(360deg)}}
-
-.gate-msg{
-  margin-top:18px;padding:13px 15px;border-radius:11px;font-size:13px;line-height:1.5;
-  display:flex;gap:11px;align-items:flex-start;
-}
+.step.fail .sx{background:var(--warn);border-color:var(--warn);color:#fff}
+.gate-msg{margin-top:18px;padding:13px 15px;border-radius:11px;font-size:13px;line-height:1.5;display:flex;gap:11px;align-items:flex-start}
 .gate-msg.err{background:#fdeceb;color:#8f2e2a;border:1px solid #f6d3d1}
-.gate-msg.warn{background:#fdf6e9;color:#8a5a16;border:1px solid #f5e3c2}
 .gate-msg svg{flex-shrink:0;margin-top:1px}
 .gate-msg .ghost{margin-top:10px;font-family:var(--font-mono);font-size:11px;color:var(--muted);word-break:break-all}
 .gate-foot{text-align:center;margin-top:20px;font-size:12px;color:var(--faint)}
 .gate-foot button{color:var(--wave);font-weight:600;font-size:12px}
 .gate-foot button:hover{text-decoration:underline}
 
-/* ════════ TOAST ════════ */
 .toast-wrap{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:120;display:flex;flex-direction:column;gap:8px;align-items:center}
-.toast{
-  background:var(--ink);color:#fff;padding:11px 18px;border-radius:11px;font-size:13.5px;
-  box-shadow:var(--shadow-lg);display:flex;align-items:center;gap:10px;
-  animation:tin .25s ease;max-width:90vw;
-}
+.toast{background:var(--ink);color:#fff;padding:11px 18px;border-radius:11px;font-size:13.5px;box-shadow:var(--shadow-lg);display:flex;align-items:center;gap:10px;animation:tin .25s ease;max-width:90vw}
 @keyframes tin{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 
-/* ════════ RESPONSIVE ════════ */
-@media(max-width:900px){
-  .channels{grid-template-columns:1fr}
-  .searchbox{max-width:none}
+/* ════ MAPA + UBICACIÓN ════ */
+.loc-input{display:flex;gap:8px}
+.loc-input input{flex:1}
+.loc-input .btn{height:auto;padding:0 14px;flex-shrink:0}
+.mini-map{height:210px;border:1px solid var(--line-strong);border-radius:10px;margin-top:10px;overflow:hidden;background:var(--surface-2)}
+.loc-meta{display:flex;align-items:center;gap:12px;margin-top:8px;font-size:12px;color:var(--muted)}
+.loc-meta .link{color:var(--warn);font-weight:600;font-size:12px}
+.loc-meta .link:hover{text-decoration:underline}
+.map-wrap{position:relative}
+.big-map{height:min(620px,70vh);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;z-index:0}
+.legend{position:absolute;bottom:16px;left:16px;z-index:1000;background:#fff;border:1px solid var(--line);border-radius:11px;padding:11px 14px;box-shadow:var(--shadow-md);font-size:12.5px;display:flex;flex-direction:column;gap:7px}
+.legend .lg{display:flex;align-items:center;gap:9px;color:var(--ink-2)}
+.legend .lg-dot{width:11px;height:11px;border-radius:50%;flex-shrink:0}
+.legend .lg b{margin-left:auto;font-family:var(--font-mono);font-weight:600}
+.map-note{margin-top:13px;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:9px}
+.map-note svg{color:var(--signal);flex-shrink:0}
+.leaflet-container{font-family:var(--font-ui)}
+.pin-wrap{background:none;border:none}
+.mp{min-width:170px}
+.mp-name{font-family:var(--font-display);font-weight:700;font-size:14px;letter-spacing:-.01em}
+.mp-sub{font-size:12px;color:var(--muted);margin-top:1px}
+.mp-row{font-size:12px;color:var(--ink-2);margin-top:5px}
+.mp-btn{margin-top:9px;width:100%;background:var(--ink);color:#fff;border-radius:8px;padding:7px;font-size:12.5px;font-weight:600}
+
+@media(max-width:680px){
+  .topbar{gap:10px;padding:0 14px}.wrap{padding:0 16px}
+  .backhub span,.userchip .who{display:none}
+  .topbar .searchbox{order:5;max-width:none;flex-basis:100%}
 }
-@media(max-width:620px){
-  .topbar{gap:10px;padding:0 14px}
-  .searchbox{display:none}
-  .wrap{padding:0 16px}
-  .userchip .who{display:none}
-  .toolgrid{grid-template-columns:1fr}
-  .readout .stat{min-width:50%}
-}
-@media(prefers-reduced-motion:reduce){
-  *{animation-duration:.001ms !important;transition-duration:.05ms !important}
-  .wavebg{display:none}
-}
-:focus-visible{outline:2px solid var(--wave);outline-offset:2px;border-radius:4px}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.001ms !important;transition-duration:.05ms !important}}
 </style>
 </head>
 <body>
 
-<!-- ░░░░░░░░░░ GATE (login + verificación) ░░░░░░░░░░ -->
+<!-- ░░░ GATE ░░░ -->
 <div class="gate" id="gate">
   <div class="card">
     <div class="top">
       <svg class="glyph" viewBox="0 0 48 48" fill="none" aria-hidden="true">
-        <rect x="6"  y="20" width="6" height="22" rx="2" fill="#0e94a8"/>
-        <rect x="16" y="12" width="6" height="30" rx="2" fill="#2d54d4"/>
-        <rect x="26" y="6"  width="6" height="36" rx="2" fill="#16202c"/>
+        <rect x="6" y="20" width="6" height="22" rx="2" fill="#0e94a8"/><rect x="16" y="12" width="6" height="30" rx="2" fill="#2d54d4"/><rect x="26" y="6" width="6" height="36" rx="2" fill="#16202c"/>
         <path d="M4 16 q6 -10 12 0 t12 0 t12 0" stroke="#16c6dc" stroke-width="2.4" fill="none" stroke-linecap="round"/>
       </svg>
-      <div class="a">Vertical Xylog</div>
-      <div class="b">ERP · Plataforma interna</div>
+      <div class="a">Vertical Sayron</div>
+      <div class="b">ERP · Contactos</div>
     </div>
     <div class="body">
       <h3>Inicia sesión</h3>
       <p class="lead">Acceso restringido al personal con permiso sobre la carpeta de Drive del proyecto.</p>
-
       <button class="gbtn" id="signinBtn">
         <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.4 30.1 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.8 6.1C12.2 13.6 17.6 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.6c0-1.6-.1-3.1-.4-4.6H24v9.1h12.4c-.5 2.9-2.1 5.4-4.6 7l7.1 5.5c4.2-3.9 6.6-9.6 6.6-16z"/><path fill="#FBBC05" d="M10.4 28.7c-.5-1.5-.8-3-.8-4.7s.3-3.2.8-4.7l-7.8-6.1C1 16.5 0 20.1 0 24s1 7.5 2.6 10.8l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.1 0 11.3-2 15.1-5.5l-7.1-5.5c-2 1.3-4.6 2.1-8 2.1-6.4 0-11.8-4.1-13.6-9.8l-7.8 6.1C6.5 42.6 14.6 48 24 48z"/></svg>
         <span id="signinLbl">Continuar con Google</span>
       </button>
-
       <div class="steps" id="steps">
         <div class="step" data-step="auth"><span class="sx">1</span><span>Autenticar cuenta de Google</span></div>
         <div class="step" data-step="verify"><span class="sx">2</span><span>Verificar acceso a la carpeta de Drive</span></div>
-        <div class="step" data-step="load"><span class="sx">3</span><span>Cargar plataforma</span></div>
+        <div class="step" data-step="load"><span class="sx">3</span><span>Cargar contactos</span></div>
       </div>
-
       <div class="gate-msg err" id="gateErr" hidden>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
-        <div>
-          <strong id="gateErrTitle">Sin acceso</strong>
-          <div id="gateErrBody" style="margin-top:3px"></div>
-          <div class="ghost" id="gateErrAcct"></div>
-        </div>
+        <div><strong id="gateErrTitle">Sin acceso</strong><div id="gateErrBody" style="margin-top:3px"></div><div class="ghost" id="gateErrAcct"></div></div>
       </div>
-
-      <div class="gate-foot">
-        <span id="gateHint">Tu acceso lo controla la lista de permisos de la carpeta en Drive.</span>
-        <div style="margin-top:8px"><button id="switchAcct" hidden>Usar otra cuenta</button></div>
-      </div>
+      <div class="gate-foot"><span id="gateHint">Tu acceso lo controla la lista de permisos de la carpeta en Drive.</span>
+        <div style="margin-top:8px"><button id="switchAcct" hidden>Usar otra cuenta</button></div></div>
     </div>
   </div>
 </div>
 
-<!-- ░░░░░░░░░░ APP ░░░░░░░░░░ -->
+<!-- ░░░ APP ░░░ -->
 <div id="app" hidden>
-
-  <!-- TOP BAR -->
   <header class="topbar">
-    <a class="brand" href="#" id="homeLink">
-      <svg class="glyph" viewBox="0 0 48 48" fill="none" aria-hidden="true">
-        <rect x="6"  y="20" width="6" height="22" rx="2" fill="#0e94a8"/>
-        <rect x="16" y="12" width="6" height="30" rx="2" fill="#2d54d4"/>
-        <rect x="26" y="6"  width="6" height="36" rx="2" fill="#16202c"/>
-        <path d="M4 16 q6 -10 12 0 t12 0 t12 0" stroke="#16c6dc" stroke-width="2.4" fill="none" stroke-linecap="round"/>
-      </svg>
-      <span class="wm"><span class="a">V-Xylog</span><span class="b">ERP</span></span>
+    <a class="brand" id="brandLink" href="index.html">
+      <svg class="glyph" viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect x="6" y="20" width="6" height="22" rx="2" fill="#0e94a8"/><rect x="16" y="12" width="6" height="30" rx="2" fill="#2d54d4"/><rect x="26" y="6" width="6" height="36" rx="2" fill="#16202c"/><path d="M4 16 q6 -10 12 0 t12 0 t12 0" stroke="#16c6dc" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg>
+      <span class="wm"><span class="a">V-Sayron</span><span class="b">Contactos</span></span>
     </a>
     <div class="sep"></div>
+    <a class="backhub" id="hubLink" href="index.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m15 18-6-6 6-6"/></svg><span>Herramientas</span></a>
     <label class="searchbox">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-      <input id="search" type="text" placeholder="Buscar herramientas, proyectos…" autocomplete="off">
+      <input id="search" type="text" placeholder="Buscar por nombre, empresa, correo…" autocomplete="off">
       <kbd>Ctrl K</kbd>
     </label>
     <div class="spacer"></div>
-
-    <button class="iconbtn" id="bellBtn" title="Anuncios"><span class="dot"></span>
-      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
-    </button>
-    <button class="iconbtn" id="helpBtn" title="Ayuda">
-      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 4.5 1.5c0 1.5-2 2-2 3"/><path d="M12 17h.01"/></svg>
-    </button>
-
     <button class="userchip" id="userChip">
       <span class="av" id="avatar">··</span>
       <span class="who"><span class="n" id="uName">Usuario</span><span class="r" id="uRole">—</span></span>
@@ -449,423 +310,543 @@ footer{margin-top:56px;border-top:1px solid var(--line);background:rgba(255,255,
     </button>
   </header>
 
-  <!-- USER MENU -->
   <div class="menu" id="userMenu" hidden>
     <div class="mhead"><div class="e" id="mName">—</div><div class="s" id="mEmail">—</div></div>
-    <button class="mi"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>Mi perfil y permisos</button>
-    <button class="mi"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12.2 2h-.4a2 2 0 0 0-2 2 1.7 1.7 0 0 1-2.6 1.5 2 2 0 0 0-2.7.7l-.3.5a2 2 0 0 0 .7 2.7A1.7 1.7 0 0 1 4 12a1.7 1.7 0 0 1-1 1.6 2 2 0 0 0-.7 2.7l.3.5a2 2 0 0 0 2.7.7A1.7 1.7 0 0 1 8 18.7a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2 1.7 1.7 0 0 1 2.6-1.5 2 2 0 0 0 2.7-.7l.3-.5a2 2 0 0 0-.7-2.7A1.7 1.7 0 0 1 20 12a1.7 1.7 0 0 1 1-1.6 2 2 0 0 0 .7-2.7l-.3-.5a2 2 0 0 0-2.7-.7A1.7 1.7 0 0 1 16 5.3a2 2 0 0 0-2-2Z"/><circle cx="12" cy="12" r="3"/></svg>Configuración</button>
     <button class="mi" id="openDrive"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2Z"/></svg>Abrir carpeta en Drive</button>
+    <button class="mi" id="exportBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>Exportar CSV</button>
     <button class="mi danger" id="signoutBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/></svg>Cerrar sesión</button>
   </div>
 
   <main class="wrap">
-
-    <!-- HERO -->
-    <section class="hero">
-      <div class="eyebrow">Plataforma interna · Vertical Xylog</div>
-      <h1>Bienvenido<span id="heroName"></span> <em>— centro de herramientas</em></h1>
-      <p class="sub">Acceso unificado a cotización, proyectos y portal de cliente para las divisiones WaveSense y Epsilon Water Technology.</p>
-
-      <!-- READOUT (firma) -->
+    <section class="head">
+      <div class="eyebrow">Vertical Sayron · Base de datos</div>
+      <h1>Contactos</h1>
+      <p class="sub">Clientes, proveedores y prospectos — guardados en Drive y agrupados por empresa.</p>
       <div class="readout">
-        <svg class="wavebg" viewBox="0 0 800 100" preserveAspectRatio="none" aria-hidden="true">
-          <path id="wavePath" d="M0 60 Q 50 20 100 60 T 200 60 T 300 60 T 400 60 T 500 60 T 600 60 T 700 60 T 800 60"
-                fill="none" stroke="url(#wg)" stroke-width="2"/>
-          <defs><linearGradient id="wg" x1="0" x2="1"><stop offset="0" stop-color="#16c6dc" stop-opacity="0"/><stop offset=".5" stop-color="#16c6dc" stop-opacity=".55"/><stop offset="1" stop-color="#2d54d4" stop-opacity="0"/></linearGradient></defs>
-        </svg>
-        <div class="stat"><div class="lab"><span class="pip ok" id="pipDrive"></span>Carpeta de Drive</div><div class="val sm" id="vDrive">Acceso verificado</div></div>
-        <div class="stat"><div class="lab"><span class="pip off" id="pipBackend"></span>Backend Apps Script</div><div class="val sm" id="vBackend">No configurado</div></div>
-        <div class="stat"><div class="lab"><span class="pip ok"></span>Entorno</div><div class="val sm" id="vEnv">Producción</div></div>
-        <div class="stat"><div class="lab">Última sincronización</div><div class="val sm mono" id="vSync">—</div></div>
+        <div class="stat"><div class="lab">Total</div><div class="val" id="sTotal">0</div></div>
+        <div class="stat"><div class="lab"><span class="pip ok"></span>Clientes</div><div class="val" id="sClientes">0</div></div>
+        <div class="stat"><div class="lab"><span class="pip" style="background:var(--eps)"></span>Proveedores</div><div class="val" id="sProv">0</div></div>
+        <div class="stat"><div class="lab">Empresas</div><div class="val" id="sEmp">0</div></div>
+        <div class="stat"><div class="lab"><span class="pip" id="pipStore"></span>Almacenamiento</div><div class="val sm" id="sStore">—</div></div>
       </div>
     </section>
 
-    <!-- ACCESOS RÁPIDOS -->
-    <section class="sec">
-      <div class="sec-h"><span class="t">Accesos rápidos</span><span class="ln"></span><span class="c">Marca tus favoritos con la estrella</span></div>
-      <div class="chips" id="favChips"></div>
-    </section>
-
-    <!-- CANALES / DIVISIONES -->
-    <section class="sec">
-      <div class="sec-h"><span class="t">Divisiones</span><span class="ln"></span><span class="c" id="divCount">—</span></div>
-      <div class="channels" id="channels"></div>
-    </section>
-
-    <!-- MÓDULOS COMPARTIDOS -->
-    <section class="sec">
-      <div class="sec-h"><span class="t">General &amp; administración</span><span class="ln"></span><span class="c">Transversal a toda la empresa</span></div>
-      <div class="modgrid" id="shared"></div>
-    </section>
-
-  </main>
-
-  <footer>
-    <div class="wrap foot">
-      <span class="fb">© <span id="yr"></span> Vertical Xylog</span>
-      <span class="fb">·</span>
-      <span class="fb mono" id="ver">erp v0.1.0</span>
-      <span class="spacer"></span>
-      <a href="#" class="fb">Documentación</a>
-      <a href="#" class="fb">Registro de cambios</a>
-      <a href="#" class="fb">Soporte</a>
+    <div class="toolbar">
+      <div class="chips" id="typeChips">
+        <button class="fchip on" data-type="all">Todos <span class="cnt" id="cAll">0</span></button>
+        <button class="fchip" data-type="cliente">Clientes <span class="cnt" id="cCli">0</span></button>
+        <button class="fchip" data-type="proveedor">Proveedores <span class="cnt" id="cPro">0</span></button>
+        <button class="fchip" data-type="prospecto">Prospectos <span class="cnt" id="cPros">0</span></button>
+        <button class="fchip" data-type="otro">Otros <span class="cnt" id="cOtr">0</span></button>
+      </div>
+      <div class="spacer"></div>
+      <div class="toggle" id="viewToggle">
+        <button data-view="list" class="on"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>Lista</button>
+        <button data-view="company"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/><path d="M9 9h.01M9 13h.01M9 17h.01"/></svg>Por empresa</button>
+        <button data-view="map"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="m9 19-6-3V5l6 3 6-3 6 3v11l-6 3-6-3Zm0 0V8m6 8V5"/></svg>Mapa</button>
+      </div>
+      <button class="btn icon" id="syncBtn" title="Sincronizar"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M21 12a9 9 0 0 0-9-9 9 9 0 0 0-6.7 3L3 8M3 3v5h5M3 12a9 9 0 0 0 9 9 9 9 0 0 0 6.7-3l2.3-2M21 21v-5h-5"/></svg></button>
+      <button class="btn primary" id="newBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>Nuevo contacto</button>
     </div>
-  </footer>
+
+    <div class="banner" id="storeBanner" hidden>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
+      <div>Sin backend configurado — los contactos se guardan en <b>este navegador</b>. Configura <b>APPS_SCRIPT_URL</b> para guardarlos en Drive.</div>
+    </div>
+
+    <div class="content" id="content"></div>
+  </main>
 </div>
 
+<datalist id="companyList"></datalist>
 <div class="toast-wrap" id="toasts"></div>
-
-<!-- Google Identity Services -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 
 <script>
-/* ══════════════════════════════════════════════════════════════════
-   CONFIGURACIÓN CENTRAL
-   Para agregar/quitar herramientas: edita ERP_CONFIG.divisions / .shared.
-   Cada herramienta: { id, name, desc, url, icon, status }
-     status: 'live'  → enlace activo
-             'beta'  → activo, en pruebas
-             'soon'  → prevista (placeholder, sin enlace todavía)
-   ══════════════════════════════════════════════════════════════════ */
-const ERP_CONFIG = {
-  /* ---- Autenticación / backend (LLENAR) ---- */
+/* ════════════ CONFIGURACIÓN ════════════ */
+const APP_CONFIG={
   auth:{
-    CLIENT_ID:      "248534124825-vhodg6tjk2ql0la7urg0n3gphg294l0p.apps.googleusercontent.com",  // OAuth Web client (Google Cloud)
-    DRIVE_FOLDER_ID:"1ewKPyNiTD9q4JLg1tFOph7bjL_UvPZS5",                // carpeta raíz de la plataforma
-    APPS_SCRIPT_URL:"",                                          // (opcional) URL /exec del Web App
-    ENV:"Producción",                                            // o "Pruebas"
-    VERSION:"erp v0.1.0"
+    CLIENT_ID:      "248534124825-vhodg6tjk2ql0la7urg0n3gphg294l0p.apps.googleusercontent.com",
+    DRIVE_FOLDER_ID:"1ewKPyNiTD9q4JLg1tFOph7bjL_UvPZS5",
+    APPS_SCRIPT_URL:"https://script.google.com/macros/s/AKfycbw3bKIvky0BdvaspcvLU0nLqq1Ck7zjrVet6XetdWXvrKJ6wXoXLG_r74xO4Y8-GfuCgw/exec"   // /exec del Web App
   },
-
-  /* ---- Divisiones (canales) ---- */
-  divisions:[
-    {
-      id:"wavesense", cls:"wave", name:"WaveSense",
-      tagline:"Sensórica y dispositivos · cotización por equipo",
-      tools:[
-        // Las cotizaciones de WaveSense varían según el dispositivo:
-        // se dejan previstas para enlazar cada cotizador especializado.
-        {id:"ws-cot-a", name:"Cotizador — Equipo A", desc:"Configurador y cotización del dispositivo A.", url:"", icon:"calc", status:"soon"},
-        {id:"ws-cot-b", name:"Cotizador — Equipo B", desc:"Configurador y cotización del dispositivo B.", url:"", icon:"calc", status:"soon"},
-        {id:"ws-cot-c", name:"Cotizador — Equipo C", desc:"Variante con lógica de transductores CT/VT.", url:"", icon:"wave", status:"soon"},
-        {id:"ws-energy", name:"Energy Monitor", desc:"Configurador de tableros + cotización multipágina.", url:"", icon:"chart", status:"soon"},
-        {id:"ws-cat", name:"Catálogo técnico", desc:"Fichas, dimensiones y diagramas SVG de equipos.", url:"", icon:"book", status:"soon"}
-      ]
-    },
-    {
-      id:"epsilon", cls:"eps", name:"Epsilon Water Technology",
-      tagline:"Tecnología de agua · plantas y tratamiento",
-      tools:[
-        {id:"ep-cot", name:"Cotizador de plantas", desc:"Dimensionamiento y cotización de sistemas.", url:"", icon:"drop", status:"soon"},
-        {id:"ep-cat", name:"Catálogo de productos", desc:"Líneas de tratamiento y componentes.", url:"", icon:"book", status:"soon"},
-        {id:"ep-spec", name:"Generador de fichas", desc:"Hojas técnicas y memorias de cálculo.", url:"", icon:"doc", status:"soon"}
-      ]
-    }
-  ],
-
-  /* ---- Módulos transversales ---- */
-  shared:[
-    {id:"clientes", name:"Portal de cliente", desc:"Vista pública: productos y solicitud de cotización.", url:"", icon:"store", status:"soon", tag:"Externo"},
-    {id:"proyectos", name:"Proyectos", desc:"Lista de proyectos con galería de fotos, cotizaciones y documentos.", url:"", icon:"layers", status:"soon"},
-    {id:"galeria", name:"Galería de fotos", desc:"Documentación fotográfica vinculada a Drive.", url:"", icon:"image", status:"soon"},
-    {id:"cotizaciones", name:"Cotizaciones", desc:"Registro central y seguimiento de cotizaciones emitidas.", url:"", icon:"file", status:"soon"},
-    {id:"clientes-db", name:"Clientes & contactos", desc:"Directorio de clientes, contactos y oportunidades.", url:"", icon:"users", status:"soon"},
-    {id:"reportes", name:"Reportes & tableros", desc:"Indicadores de ventas, proyectos y producción.", url:"", icon:"chart", status:"soon"},
-    {id:"admin", name:"Administración", desc:"Usuarios, permisos de carpeta y parámetros del sistema.", url:"", icon:"shield", status:"soon", tag:"Admin"},
-    {id:"audit", name:"Registro de actividad", desc:"Bitácora de accesos y acciones para auditoría.", url:"", icon:"activity", status:"soon", tag:"Admin"}
-  ]
+  tool:{
+    collection:"contactos",   // carpeta propia de datos de esta herramienta
+    hubUrl:"index.html"       // página principal del ERP
+  }
 };
 
-/* ══════════════ ÍCONOS (inline SVG) ══════════════ */
-const ICONS={
-  calc:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15v2M8 18h4"/>',
-  wave:'<path d="M2 12s2-5 5-5 3 10 6 10 5-5 5-5"/>',
-  chart:'<path d="M3 3v18h18"/><path d="M7 14l3-4 3 3 4-6"/>',
-  drop:'<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11Z"/>',
-  book:'<path d="M4 5a2 2 0 0 1 2-2h13v18H6a2 2 0 0 1-2-2Z"/><path d="M8 3v18"/>',
-  doc:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>',
-  store:'<path d="M3 9 4 4h16l1 5"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/><path d="M3 9h18"/>',
-  layers:'<path d="m12 2 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5M3 17l9 5 9-5"/>',
-  image:'<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/>',
-  file:'<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/>',
-  users:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/>',
-  shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/>',
-  activity:'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>'
+const TYPES={
+  cliente:{label:"Cliente"}, proveedor:{label:"Proveedor"},
+  prospecto:{label:"Prospecto"}, otro:{label:"Otro"}
 };
-function icon(name){return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]||ICONS.file}</svg>`;}
 
-/* ══════════════ ESTADO ══════════════ */
+/* ════════════ ESTADO ════════════ */
 let SESSION={token:null,profile:null,role:"Invitado"};
-const FAV_KEY="vxylog_favs";
+const STATE={view:"list",type:"all",q:""};
+const TYPE_COLORS={cliente:"#0e94a8",proveedor:"#2d54d4",prospecto:"#dd8a2b",otro:"#8c99a6"};
+const CR_CENTER=[9.7489,-83.7534]; // Costa Rica
+let viewMap=null,formMap=null,formMarker=null,formLoc={lat:null,lng:null};
+const $=s=>document.querySelector(s);
+const $$=s=>document.querySelectorAll(s);
 
-/* almacenamiento tolerante (no rompe si localStorage está bloqueado) */
-const store={
-  get(k){try{return JSON.parse(localStorage.getItem(k))||[]}catch(e){return this._m[k]||[]}},
-  set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){this._m[k]=v}},
-  _m:{}
+/* ════════════ CAPA DE DATOS (Drive vía Apps Script, o localStorage) ════════════ */
+const USE_DRIVE=()=>!!APP_CONFIG.auth.APPS_SCRIPT_URL;
+const LS_KEY="sayron_contactos";
+function lsGet(){try{return JSON.parse(localStorage.getItem(LS_KEY))||[]}catch(e){return DB._mem||[]}}
+function lsSet(v){try{localStorage.setItem(LS_KEY,JSON.stringify(v))}catch(e){DB._mem=v}}
+
+function jsonp(params){
+  return new Promise((resolve,reject)=>{
+    const cb="__jp_"+Math.random().toString(36).slice(2);
+    const t=setTimeout(()=>{cleanup();reject(new Error("timeout"))},15000);
+    function cleanup(){clearTimeout(t);delete window[cb];if(s.parentNode)s.remove();}
+    window[cb]=d=>{cleanup();resolve(d);};
+    const qs=new URLSearchParams({...params,callback:cb}).toString();
+    const s=document.createElement("script");
+    s.src=APP_CONFIG.auth.APPS_SCRIPT_URL+"?"+qs;
+    s.onerror=()=>{cleanup();reject(new Error("script-error"))};
+    document.body.appendChild(s);
+  });
+}
+async function post(body){
+  // patrón no-cors: respuesta opaca (no se lee), confiamos en el 200
+  await fetch(APP_CONFIG.auth.APPS_SCRIPT_URL,{method:"POST",mode:"no-cors",body:JSON.stringify(body)});
+}
+
+const DB={
+  cache:[], _mem:[],
+  async load(){
+    if(USE_DRIVE()){
+      const r=await jsonp({action:"list",collection:APP_CONFIG.tool.collection});
+      this.cache=(r.items||[]).map(it=>({id:it.id,...(it.data||{})}));
+    }else{
+      this.cache=lsGet();
+    }
+    this.cache.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));
+    return this.cache;
+  },
+  async save(c){
+    const isNew=!c.id;
+    if(isNew){c.id="c_"+Date.now().toString(36)+Math.random().toString(36).slice(2,5);c.created=new Date().toISOString();}
+    c.updated=new Date().toISOString();
+    const i=this.cache.findIndex(x=>x.id===c.id);
+    if(i>=0)this.cache[i]=c; else this.cache.push(c);
+    this.cache.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));
+    if(USE_DRIVE()){const {id,...data}=c;await post({action:"save",collection:APP_CONFIG.tool.collection,id,data});}
+    else lsSet(this.cache);
+    return c;
+  },
+  async remove(id){
+    this.cache=this.cache.filter(x=>x.id!==id);
+    if(USE_DRIVE())await post({action:"delete",collection:APP_CONFIG.tool.collection,id});
+    else lsSet(this.cache);
+  }
 };
 
-/* ══════════════ RENDER ══════════════ */
-const $=s=>document.querySelector(s);
-const allTools=()=>[
-  ...ERP_CONFIG.divisions.flatMap(d=>d.tools.map(t=>({...t,div:d.name,cls:d.cls}))),
-  ...ERP_CONFIG.shared.map(t=>({...t,div:"General",cls:"gen"}))
-];
+/* ════════════ HELPERS ════════════ */
+function initials(n){return (n||"?").trim().split(/\s+/).map(s=>s[0]||"").slice(0,2).join("").toUpperCase()||"?";}
+function esc(s){return (s==null?"":String(s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function fmtDate(d){if(!d)return"";const x=new Date(d+"T00:00:00");return isNaN(x)?d:x.toLocaleDateString("es-CR",{day:"2-digit",month:"short",year:"numeric"});}
+function companyKey(c){return (c.empresa||"").trim();}
 
-function statusTag(s){
-  if(s==="beta")return '<span class="tag beta">Beta</span>';
-  if(s==="soon")return '<span class="tag soon">Próximamente</span>';
-  return '<span class="tag live">Activo</span>';
+/* ════════════ RENDER ════════════ */
+function filtered(){
+  let list=DB.cache.slice();
+  if(STATE.type!=="all")list=list.filter(c=>(c.tipo||"otro")===STATE.type);
+  if(STATE.q){
+    const q=STATE.q.toLowerCase();
+    list=list.filter(c=>[c.nombre,c.empresa,c.cargo,c.correo,c.telefono,c.lugar,c.ubicacion,c.notas,(c.etiquetas||[]).join(" ")]
+      .some(v=>v&&String(v).toLowerCase().includes(q)));
+  }
+  return list;
 }
-function open(t){
-  if(t.status==="soon"||!t.url){toast(`“${t.name}” aún no está enlazada. Edita su <code>url</code> en ERP_CONFIG.`);return;}
-  window.location.href=t.url;
+function renderStats(){
+  const all=DB.cache;
+  const by=t=>all.filter(c=>(c.tipo||"otro")===t).length;
+  $("#sTotal").textContent=all.length;
+  $("#sClientes").textContent=by("cliente");
+  $("#sProv").textContent=by("proveedor");
+  const emps=new Set(all.map(companyKey).filter(Boolean));
+  $("#sEmp").textContent=emps.size;
+  $("#cAll").textContent=all.length;$("#cCli").textContent=by("cliente");$("#cPro").textContent=by("proveedor");
+  $("#cPros").textContent=by("prospecto");$("#cOtr").textContent=by("otro");
+  // datalist de empresas para el formulario
+  $("#companyList").innerHTML=[...emps].sort().map(e=>`<option value="${esc(e)}">`).join("");
 }
-
-function renderChannels(){
-  $("#divCount").textContent=`${ERP_CONFIG.divisions.length} divisiones · ${ERP_CONFIG.divisions.reduce((a,d)=>a+d.tools.length,0)} herramientas`;
-  $("#channels").innerHTML=ERP_CONFIG.divisions.map(d=>`
-    <div class="channel ${d.cls}">
-      <div class="ch-head">
-        <span class="badge">${d.cls==="wave"?"División · señal":"División · agua"}</span>
-        <h2>${d.name}</h2>
-        <div class="d">${d.tagline}</div>
-      </div>
-      <div class="toolgrid">
-        ${d.tools.map(t=>toolCard(t)).join("")}
-        <button class="addtool" data-add="${d.id}">+ agregar herramienta</button>
-      </div>
-    </div>`).join("");
-}
-function toolCard(t){
-  const fav=store.get(FAV_KEY).includes(t.id);
-  const clickable=t.status!=="soon"&&t.url;
-  return `<div class="tool ${clickable?'live':'soon'}" data-tool="${t.id}" ${clickable?'role="button" tabindex="0"':''}>
-    <button class="fav ${fav?'on':''}" data-fav="${t.id}" title="Favorito" aria-label="Favorito">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="${fav?'currentColor':'none'}" stroke="currentColor" stroke-width="1.6"><path d="m12 2 3 6.5 7 .8-5 4.8 1.3 7-6.3-3.5L6 21l1.3-7-5-4.8 7-.8Z"/></svg>
-    </button>
-    <div class="ic">${icon(t.icon)}</div>
-    <div class="nm">${t.name}</div>
-    <div class="ds">${t.desc}</div>
-    <div style="margin-top:10px">${statusTag(t.status)}</div>
+function contactCard(c){
+  const t=c.tipo||"otro";
+  const met=[c.lugar,fmtDate(c.fecha)].filter(Boolean).join(" · ");
+  return `<div class="contact" data-id="${c.id}">
+    <div class="c-top">
+      <div class="avatar t-${t}">${esc(initials(c.nombre))}</div>
+      <div class="c-id"><div class="c-name">${esc(c.nombre||"(sin nombre)")}</div>
+        <div class="c-sub">${esc([c.cargo,c.empresa].filter(Boolean).join(" · ")||"—")}</div></div>
+      <span class="type-badge t-${t}">${esc((TYPES[t]||TYPES.otro).label)}</span>
+    </div>
+    <div class="c-fields">
+      ${c.correo?`<div class="c-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 6 10-6"/></svg><span>${esc(c.correo)}</span></div>`:""}
+      ${c.telefono?`<div class="c-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.1-8.7A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.5-1.1a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2Z"/></svg><span>${esc(c.telefono)}</span></div>`:""}
+      ${met?`<div class="c-row met"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg><span>${esc(met)}</span></div>`:""}
+      ${c.ubicacion?`<div class="c-row met"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20"/></svg><span>${esc(c.ubicacion)}${(c.lat!=null)?' · 📍':''}</span></div>`:""}
+    </div>
+    ${(c.etiquetas&&c.etiquetas.length)?`<div class="c-tags">${c.etiquetas.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`:""}
   </div>`;
 }
-function renderShared(){
-  $("#shared").innerHTML=ERP_CONFIG.shared.map(t=>{
-    const clickable=t.status!=="soon"&&t.url;
-    return `<div class="mod ${clickable?'live':'soon'}" data-tool="${t.id}" ${clickable?'role="button" tabindex="0"':''}>
-      <div class="mi">${icon(t.icon)}</div>
-      <div><div class="mt">${t.name}${t.tag?` <span class="tag soon">${t.tag}</span>`:''}${t.status==='soon'?' <span class="tag soon">Próx.</span>':''}</div>
-      <div class="md">${t.desc}</div></div>
+function render(){
+  if(viewMap){viewMap.remove();viewMap=null;}
+  const list=filtered();
+  const box=$("#content");
+  if(!list.length){
+    box.innerHTML=`<div class="empty">
+      <div class="ei"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/></svg></div>
+      <h3>${DB.cache.length?"Sin resultados":"Aún no hay contactos"}</h3>
+      <p>${DB.cache.length?"Prueba con otra búsqueda o filtro.":"Crea el primero para empezar tu base de datos."}</p>
+      ${DB.cache.length?"":'<button class="btn primary" style="margin:0 auto" onclick="openForm()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>Nuevo contacto</button>'}
     </div>`;
-  }).join("");
-}
-function renderFavs(){
-  const favs=store.get(FAV_KEY);
-  const map=Object.fromEntries(allTools().map(t=>[t.id,t]));
-  const items=favs.map(id=>map[id]).filter(Boolean);
-  $("#favChips").innerHTML = items.length
-    ? items.map(t=>`<button class="chip" data-tool="${t.id}">${icon(t.icon)} ${t.name}</button>`).join("")
-    : `<span class="chip empty">Sin favoritos — pulsa la ★ de una herramienta para fijarla aquí</span>`;
+    return;
+  }
+  if(STATE.view==="map"){renderMap(list);return;}
+  if(STATE.view==="company"){
+    const map=new Map();
+    list.forEach(c=>{const k=companyKey(c)||"(Sin empresa)";if(!map.has(k))map.set(k,[]);map.get(k).push(c);});
+    const groups=[...map.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
+    box.innerHTML=groups.map(([name,cs])=>`
+      <div class="company-group">
+        <div class="company-head">
+          <div class="cg-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/><path d="M9 9h.01M9 13h.01M9 17h.01"/></svg></div>
+          <span class="cg-name">${esc(name)}</span>
+          <span class="cg-count">${cs.length} ${cs.length===1?"contacto":"contactos"}</span>
+          <span class="cg-ln"></span>
+        </div>
+        <div class="grid">${cs.map(contactCard).join("")}</div>
+      </div>`).join("");
+  }else{
+    box.innerHTML=`<div class="grid">${list.map(contactCard).join("")}</div>`;
+  }
 }
 
-/* ══════════════ INTERACCIÓN ══════════════ */
-function bindGrid(){
-  document.body.addEventListener("click",e=>{
-    const fav=e.target.closest("[data-fav]");
-    if(fav){e.stopPropagation();toggleFav(fav.dataset.fav);return;}
-    const add=e.target.closest("[data-add]");
-    if(add){toast("Para agregar una herramienta, añade un objeto a <code>tools</code> de esa división en ERP_CONFIG.");return;}
-    const card=e.target.closest("[data-tool]");
-    if(card){const t=allTools().find(x=>x.id===card.dataset.tool);if(t)open(t);}
+/* ════════════ MAPA ════════════ */
+function pinIcon(color){
+  return L.divIcon({className:"pin-wrap",iconSize:[30,40],iconAnchor:[15,38],popupAnchor:[0,-34],
+    html:`<svg width="30" height="40" viewBox="0 0 30 40"><path d="M15 0C7 0 0 6.6 0 14.7 0 25 15 40 15 40s15-15 15-25.3C30 6.6 23 0 15 0z" fill="${color}" stroke="#fff" stroke-width="1.5"/><circle cx="15" cy="14.5" r="5.5" fill="#fff"/></svg>`});
+}
+function renderMap(list){
+  const box=$("#content");
+  const withLoc=list.filter(c=>c.lat!=null&&c.lng!=null);
+  const noLoc=list.length-withLoc.length;
+  box.innerHTML=`<div class="map-wrap">
+    <div id="bigMap" class="big-map"></div>
+    <div class="legend">${Object.entries(TYPES).map(([k,v])=>`<div class="lg"><span class="lg-dot" style="background:${TYPE_COLORS[k]}"></span>${v.label}<b>${withLoc.filter(c=>(c.tipo||"otro")===k).length}</b></div>`).join("")}</div>
+  </div>
+  ${noLoc?`<div class="map-note"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>${noLoc} contacto(s) sin ubicación en el mapa — edítalos para agregarla.</div>`:""}`;
+  if(typeof L==="undefined"){box.innerHTML='<div class="empty"><div class="ei">🗺️</div><h3>Mapa no disponible</h3><p>No se pudo cargar la librería de mapas. Revisa tu conexión.</p></div>';return;}
+  viewMap=L.map("bigMap",{scrollWheelZoom:true}).setView(CR_CENTER,7);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(viewMap);
+  const pts=[];
+  withLoc.forEach(c=>{
+    const m=L.marker([c.lat,c.lng],{icon:pinIcon(TYPE_COLORS[c.tipo||"otro"])}).addTo(viewMap);
+    m.bindPopup(`<div class="mp"><div class="mp-name">${esc(c.nombre||"")}</div>
+      <div class="mp-sub">${esc([(TYPES[c.tipo||"otro"]||TYPES.otro).label,c.empresa].filter(Boolean).join(" · "))}</div>
+      ${c.correo?`<div class="mp-row">${esc(c.correo)}</div>`:""}
+      ${c.telefono?`<div class="mp-row">${esc(c.telefono)}</div>`:""}
+      <button class="mp-btn" onclick="openForm('${c.id}')">Ver / editar</button></div>`);
+    pts.push([c.lat,c.lng]);
   });
-  document.body.addEventListener("keydown",e=>{
-    if((e.key==="Enter"||e.key===" ")&&e.target.dataset&&e.target.dataset.tool){
-      e.preventDefault();const t=allTools().find(x=>x.id===e.target.dataset.tool);if(t)open(t);
+  if(pts.length===1)viewMap.setView(pts[0],14);
+  else if(pts.length>1)viewMap.fitBounds(pts,{padding:[50,50],maxZoom:15});
+  setTimeout(()=>viewMap&&viewMap.invalidateSize(),150);
+}
+
+/* geocodificación con Nominatim (OpenStreetMap, sin llave) */
+async function geocode(q){
+  if(!q)return null;
+  const r=await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`);
+  const j=await r.json();
+  if(j&&j[0])return {lat:+j[0].lat,lng:+j[0].lon,label:j[0].display_name};
+  return null;
+}
+
+/* ════════════ FORMULARIO (slide-over) ════════════ */
+let editingId=null;
+function openForm(id){
+  editingId=id||null;
+  const c=id?DB.cache.find(x=>x.id===id):{tipo:"cliente",etiquetas:[]};
+  formMarker=null;formLoc={lat:(c.lat??null),lng:(c.lng??null)};
+  const t=c.tipo||"cliente";
+  const seg=Object.entries(TYPES).map(([k,v])=>`<label class="${k===t?'sel':''}"><input type="radio" name="tipo" value="${k}" ${k===t?'checked':''}>${v.label}</label>`).join("");
+  const sheet=document.createElement("div");
+  sheet.className="sheet";sheet.id="sheet";
+  sheet.innerHTML=`
+    <div class="sheet-head">
+      <h2>${id?"Editar contacto":"Nuevo contacto"}</h2>
+      <button class="iconbtn" id="closeSheet" title="Cerrar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="sheet-body">
+      <div class="field"><label>Tipo</label><div class="seg" id="segTipo">${seg}</div></div>
+      <div class="field"><label>Nombre completo <span class="req">*</span></label><input id="f_nombre" value="${esc(c.nombre)}" placeholder="Ej. María Jiménez"></div>
+      <div class="field row2">
+        <div class="field"><label>Empresa</label><input id="f_empresa" list="companyList" value="${esc(c.empresa)}" placeholder="Empresa / organización"></div>
+        <div class="field"><label>Cargo</label><input id="f_cargo" value="${esc(c.cargo)}" placeholder="Puesto"></div>
+      </div>
+      <div class="field row2">
+        <div class="field"><label>Correo</label><input id="f_correo" type="email" value="${esc(c.correo)}" placeholder="correo@empresa.com"></div>
+        <div class="field"><label>Teléfono</label><input id="f_telefono" value="${esc(c.telefono)}" placeholder="+506 ..."></div>
+      </div>
+      <div class="field row2">
+        <div class="field"><label>Lugar donde se conoció</label><input id="f_lugar" value="${esc(c.lugar)}" placeholder="Ej. Feria, obra, referencia…"></div>
+        <div class="field"><label>Fecha en que se conoció</label><input id="f_fecha" type="date" value="${esc(c.fecha)}"></div>
+      </div>
+      <div class="field"><label>Sitio web</label><input id="f_web" value="${esc(c.web)}" placeholder="https://"></div>
+      <div class="field">
+        <label>Ubicación en el mapa</label>
+        <div class="loc-input">
+          <input id="f_ubicacion" value="${esc(c.ubicacion)}" placeholder="Dirección, ciudad o lugar">
+          <button type="button" class="btn" id="geoSearch">Buscar</button>
+          <button type="button" class="btn icon" id="geoMe" title="Mi ubicación"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none"/></svg></button>
+        </div>
+        <div class="mini-map" id="miniMap"></div>
+        <div class="loc-meta"><span id="coordsTxt" class="mono">Sin ubicación · busca, haz clic en el mapa o usa tu ubicación</span><button type="button" id="clearLoc" class="link" hidden>Quitar</button></div>
+      </div>
+      <div class="field"><label>Etiquetas</label><input id="f_etiquetas" value="${esc((c.etiquetas||[]).join(", "))}" placeholder="Separadas por comas: VIP, agua, urgente"></div>
+      <div class="field"><label>Notas</label><textarea id="f_notas" placeholder="Contexto, acuerdos, seguimiento…">${esc(c.notas)}</textarea></div>
+    </div>
+    <div class="sheet-foot">
+      ${id?'<button class="btn" id="deleteBtn" style="color:var(--warn);border-color:#f0c9c7"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>Eliminar</button>':""}
+      <div class="spacer"></div>
+      <button class="btn" id="cancelBtn">Cancelar</button>
+      <button class="btn primary" id="saveBtn">Guardar</button>
+    </div>`;
+  const bd=document.createElement("div");bd.className="backdrop";bd.id="backdrop";
+  document.body.appendChild(bd);document.body.appendChild(sheet);
+  const close=()=>{if(formMap){formMap.remove();formMap=null;}formMarker=null;sheet.remove();bd.remove();editingId=null;};
+  bd.onclick=close;
+  sheet.querySelector("#closeSheet").onclick=close;
+  sheet.querySelector("#cancelBtn").onclick=close;
+  sheet.querySelector("#segTipo").addEventListener("click",e=>{
+    const lab=e.target.closest("label");if(!lab)return;
+    sheet.querySelectorAll("#segTipo label").forEach(l=>l.classList.remove("sel"));
+    lab.classList.add("sel");
+  });
+  sheet.querySelector("#saveBtn").onclick=async()=>{
+    const nombre=sheet.querySelector("#f_nombre").value.trim();
+    if(!nombre){toast("El nombre es obligatorio");sheet.querySelector("#f_nombre").focus();return;}
+    const data={
+      tipo:sheet.querySelector('input[name="tipo"]:checked').value,
+      nombre,
+      empresa:sheet.querySelector("#f_empresa").value.trim(),
+      cargo:sheet.querySelector("#f_cargo").value.trim(),
+      correo:sheet.querySelector("#f_correo").value.trim(),
+      telefono:sheet.querySelector("#f_telefono").value.trim(),
+      lugar:sheet.querySelector("#f_lugar").value.trim(),
+      fecha:sheet.querySelector("#f_fecha").value,
+      ubicacion:sheet.querySelector("#f_ubicacion").value.trim(),
+      lat:formLoc.lat, lng:formLoc.lng,
+      web:sheet.querySelector("#f_web").value.trim(),
+      etiquetas:sheet.querySelector("#f_etiquetas").value.split(",").map(s=>s.trim()).filter(Boolean),
+      notas:sheet.querySelector("#f_notas").value.trim()
+    };
+    if(id){data.id=id;data.created=c.created;}
+    sheet.querySelector("#saveBtn").disabled=true;
+    try{await DB.save(data);toast(id?"Contacto actualizado":"Contacto agregado");close();renderStats();render();}
+    catch(e){toast("Error al guardar: "+e.message);sheet.querySelector("#saveBtn").disabled=false;}
+  };
+  const del=sheet.querySelector("#deleteBtn");
+  if(del)del.onclick=async()=>{
+    if(!confirm("¿Eliminar este contacto? No se puede deshacer."))return;
+    try{await DB.remove(id);toast("Contacto eliminado");close();renderStats();render();}
+    catch(e){toast("Error al eliminar: "+e.message);}
+  };
+  // ── Mini-mapa de ubicación ──
+  function updateCoords(){
+    const t=sheet.querySelector("#coordsTxt"),clr=sheet.querySelector("#clearLoc");
+    if(formLoc.lat!=null){t.textContent=`📍 ${formLoc.lat}, ${formLoc.lng}`;clr.hidden=false;}
+    else{t.textContent="Sin ubicación · busca, haz clic en el mapa o usa tu ubicación";clr.hidden=true;}
+  }
+  function setMarker(lat,lng,center){
+    formLoc={lat:+(+lat).toFixed(6),lng:+(+lng).toFixed(6)};
+    if(!formMap)return;
+    if(formMarker)formMarker.setLatLng([lat,lng]);
+    else{
+      formMarker=L.marker([lat,lng],{draggable:true,icon:pinIcon("#16202c")}).addTo(formMap);
+      formMarker.on("dragend",ev=>{const p=ev.target.getLatLng();formLoc={lat:+p.lat.toFixed(6),lng:+p.lng.toFixed(6)};updateCoords();});
     }
-  });
+    if(center)formMap.setView([lat,lng],Math.max(formMap.getZoom(),14));
+    updateCoords();
+  }
+  if(typeof L!=="undefined"){
+    const el=sheet.querySelector("#miniMap");
+    const start=formLoc.lat!=null?[formLoc.lat,formLoc.lng]:CR_CENTER;
+    formMap=L.map(el,{scrollWheelZoom:false}).setView(start,formLoc.lat!=null?14:7);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(formMap);
+    if(formLoc.lat!=null)setMarker(formLoc.lat,formLoc.lng,false);
+    formMap.on("click",e=>setMarker(e.latlng.lat,e.latlng.lng,false));
+    setTimeout(()=>formMap&&formMap.invalidateSize(),320);
+  }else{sheet.querySelector("#miniMap").innerHTML='<div style="padding:18px;color:var(--muted);font-size:13px">Mapa no disponible (sin conexión).</div>';}
+  updateCoords();
+  sheet.querySelector("#geoSearch").onclick=async()=>{
+    const q=sheet.querySelector("#f_ubicacion").value.trim();
+    if(!q){toast("Escribe una dirección o lugar para buscar");return;}
+    const b=sheet.querySelector("#geoSearch");b.disabled=true;b.textContent="…";
+    try{const res=await geocode(q);if(res){setMarker(res.lat,res.lng,true);toast("Ubicación encontrada");}else toast("No se encontró esa dirección");}
+    catch(e){toast("Error al buscar ubicación");}
+    b.disabled=false;b.textContent="Buscar";
+  };
+  sheet.querySelector("#geoMe").onclick=()=>{
+    if(!navigator.geolocation){toast("Tu navegador no permite geolocalización");return;}
+    toast("Obteniendo tu ubicación…");
+    navigator.geolocation.getCurrentPosition(
+      p=>setMarker(p.coords.latitude,p.coords.longitude,true),
+      ()=>toast("No se pudo obtener tu ubicación"),{enableHighAccuracy:true,timeout:10000});
+  };
+  sheet.querySelector("#clearLoc").onclick=()=>{
+    formLoc={lat:null,lng:null};
+    if(formMarker){formMap.removeLayer(formMarker);formMarker=null;}
+    updateCoords();
+  };
+  setTimeout(()=>sheet.querySelector("#f_nombre").focus(),120);
 }
-function toggleFav(id){
-  const f=store.get(FAV_KEY);const i=f.indexOf(id);
-  if(i>=0)f.splice(i,1);else f.push(id);
-  store.set(FAV_KEY,f);
-  renderChannels();renderFavs();
+window.openForm=openForm;
+
+/* ════════════ EXPORTAR CSV ════════════ */
+function exportCSV(){
+  const list=filtered();
+  if(!list.length){toast("No hay contactos para exportar");return;}
+  const cols=[["tipo","Tipo"],["nombre","Nombre"],["empresa","Empresa"],["cargo","Cargo"],["correo","Correo"],["telefono","Teléfono"],["lugar","Lugar conocido"],["fecha","Fecha conocido"],["ubicacion","Ubicación"],["lat","Latitud"],["lng","Longitud"],["web","Web"],["etiquetas","Etiquetas"],["notas","Notas"]];
+  const cell=v=>'"'+String(v==null?"":Array.isArray(v)?v.join("; "):v).replace(/"/g,'""')+'"';
+  const rows=[cols.map(c=>cell(c[1])).join(",")].concat(list.map(c=>cols.map(col=>cell(c[col[0]])).join(",")));
+  const blob=new Blob(["\uFEFF"+rows.join("\r\n")],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);
+  a.download=`contactos-sayron-${new Date().toISOString().slice(0,10)}.csv`;a.click();
+  toast(`Exportados ${list.length} contactos`);
 }
 
-/* búsqueda */
-function bindSearch(){
-  const inp=$("#search");
-  document.addEventListener("keydown",e=>{
-    if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();inp.focus();}
-  });
-  inp.addEventListener("input",()=>{
-    const q=inp.value.trim().toLowerCase();
-    document.querySelectorAll("[data-tool]").forEach(el=>{
-      const t=allTools().find(x=>x.id===el.dataset.tool);
-      const hit=!q||(t&&(t.name+t.desc+t.div).toLowerCase().includes(q));
-      el.style.display=hit?"":"none";
-    });
-  });
-}
+/* ════════════ TOAST ════════════ */
+function toast(html){const w=$("#toasts");const t=document.createElement("div");t.className="toast";t.innerHTML=html;w.appendChild(t);setTimeout(()=>{t.style.opacity="0";t.style.transition="opacity .3s";setTimeout(()=>t.remove(),300)},3200);}
 
-/* menú usuario */
-function bindMenus(){
+/* ════════════ INTERACCIÓN ════════════ */
+function bindUI(){
+  document.body.addEventListener("click",e=>{
+    const card=e.target.closest(".contact");if(card)openForm(card.dataset.id);
+  });
+  $("#newBtn").onclick=()=>openForm();
+  $("#syncBtn").onclick=async()=>{toast("Sincronizando…");await reload();toast("Actualizado");};
+  $("#typeChips").addEventListener("click",e=>{
+    const b=e.target.closest(".fchip");if(!b)return;
+    STATE.type=b.dataset.type;
+    $$("#typeChips .fchip").forEach(x=>x.classList.toggle("on",x===b));
+    render();
+  });
+  $("#viewToggle").addEventListener("click",e=>{
+    const b=e.target.closest("button");if(!b)return;
+    STATE.view=b.dataset.view;
+    $$("#viewToggle button").forEach(x=>x.classList.toggle("on",x===b));
+    render();
+  });
+  const search=$("#search");
+  search.addEventListener("input",()=>{STATE.q=search.value.trim();render();});
+  document.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();search.focus();}});
+  // menú
   const menu=$("#userMenu");
   $("#userChip").addEventListener("click",e=>{e.stopPropagation();menu.hidden=!menu.hidden;});
-  document.addEventListener("click",e=>{if(!menu.contains(e.target)&&e.target.closest("#userChip")===null)menu.hidden=true;});
-  $("#signoutBtn").addEventListener("click",signOut);
-  $("#bellBtn").addEventListener("click",()=>toast("No hay anuncios nuevos."));
-  $("#helpBtn").addEventListener("click",()=>toast("Centro de ayuda — pendiente de enlazar."));
-  $("#openDrive").addEventListener("click",()=>{
-    const id=ERP_CONFIG.auth.DRIVE_FOLDER_ID;
-    if(id&&!id.startsWith("ID_"))window.open(`https://drive.google.com/drive/folders/${id}`,"_blank");
-    else toast("Configura DRIVE_FOLDER_ID en ERP_CONFIG.");
-  });
+  document.addEventListener("click",e=>{if(!menu.contains(e.target)&&!e.target.closest("#userChip"))menu.hidden=true;});
+  $("#signoutBtn").onclick=signOut;
+  $("#exportBtn").onclick=()=>{menu.hidden=true;exportCSV();};
+  $("#openDrive").onclick=()=>{const id=APP_CONFIG.auth.DRIVE_FOLDER_ID;if(id&&!id.startsWith("ID_"))window.open(`https://drive.google.com/drive/folders/${id}`,"_blank");else toast("Configura DRIVE_FOLDER_ID.");};
+  $("#brandLink").href=APP_CONFIG.tool.hubUrl;$("#hubLink").href=APP_CONFIG.tool.hubUrl;
 }
+async function reload(){await DB.load();renderStats();render();}
 
-/* ══════════════ TOAST ══════════════ */
-function toast(html){
-  const w=$("#toasts");const t=document.createElement("div");t.className="toast";t.innerHTML=html;
-  w.appendChild(t);setTimeout(()=>{t.style.opacity="0";t.style.transition="opacity .3s";setTimeout(()=>t.remove(),300);},3600);
-}
-
-/* ══════════════ AUTENTICACIÓN + VERIFICACIÓN ══════════════ */
+/* ════════════ AUTENTICACIÓN + VERIFICACIÓN (igual que el ERP) ════════════ */
+/* Sesión cacheada: token+perfil compartidos entre herramientas del mismo sitio */
+const AUTH_KEY="sayron_gauth",HINT_KEY="sayron_hint";
+function saveAuth(token,expiresIn,profile){try{localStorage.setItem(AUTH_KEY,JSON.stringify({token,exp:Date.now()+(((expiresIn||3600)-60)*1000),profile}));}catch(e){}}
+function loadAuth(){try{const a=JSON.parse(localStorage.getItem(AUTH_KEY));if(a&&a.token&&a.exp>Date.now())return a;}catch(e){}return null;}
+function clearAuth(){try{localStorage.removeItem(AUTH_KEY);}catch(e){}}
+function saveHint(e){try{localStorage.setItem(HINT_KEY,e||"");}catch(x){}}
+function loadHint(){try{return localStorage.getItem(HINT_KEY)||"";}catch(e){return"";}}
 let tokenClient=null;
-function stepState(name,state){
-  const el=document.querySelector(`.step[data-step="${name}"]`);if(!el)return;
-  el.classList.remove("active","done","fail");el.classList.add(state);
-  const sx=el.querySelector(".sx");
-  if(state==="active")sx.innerHTML='<span class="spin"></span>';
-  else if(state==="done")sx.innerHTML='✓';
-  else if(state==="fail")sx.innerHTML='✕';
-}
-function showGateError(title,body,acct){
-  $("#gateErrTitle").textContent=title;
-  $("#gateErrBody").textContent=body;
-  $("#gateErrAcct").textContent=acct||"";
-  $("#gateErr").hidden=false;
-  $("#switchAcct").hidden=false;
-  $("#signinBtn").disabled=false;
-  $("#signinLbl").textContent="Reintentar";
-}
+function stepState(name,state){const el=document.querySelector(`.step[data-step="${name}"]`);if(!el)return;el.classList.remove("active","done","fail");el.classList.add(state);const sx=el.querySelector(".sx");if(state==="active")sx.innerHTML='<span class="spin"></span>';else if(state==="done")sx.innerHTML="✓";else if(state==="fail")sx.innerHTML="✕";}
+function showGateError(t,b,a){$("#gateErrTitle").textContent=t;$("#gateErrBody").textContent=b;$("#gateErrAcct").textContent=a||"";$("#gateErr").hidden=false;$("#switchAcct").hidden=false;}
+function resetSignin(){$("#signinBtn").disabled=false;$("#signinLbl").textContent="Reintentar";}
 
 function initAuth(){
-  const cid=ERP_CONFIG.auth.CLIENT_ID;
+  const cid=APP_CONFIG.auth.CLIENT_ID;
   if(cid.startsWith("TU_CLIENT_ID")){
-    // Modo DEMO: permite ver la interfaz sin OAuth configurado.
-    $("#gateHint").innerHTML='⚠ Modo demo — configura <b>CLIENT_ID</b> y <b>DRIVE_FOLDER_ID</b> en ERP_CONFIG.';
+    $("#gateHint").innerHTML='⚠ Modo demo — configura CLIENT_ID y DRIVE_FOLDER_ID.';
     $("#signinLbl").textContent="Entrar en modo demo";
-    $("#signinBtn").addEventListener("click",()=>enterApp({name:"Usuario demo",email:"demo@vxylog",picture:null},true));
+    $("#signinBtn").addEventListener("click",()=>enterApp({name:"Usuario demo",email:"demo@sayron",picture:null},true));
     return;
+  }
+  if(location.protocol==="file:"){
+    showGateError("Ábrelo desde un servidor","El acceso con Google no funciona con file://. Súbelo a GitHub Pages o usa  python3 -m http.server 8080  y entra a http://localhost:8080","");
+    $("#signinBtn").disabled=true;$("#switchAcct").hidden=true;return;
   }
   tokenClient=google.accounts.oauth2.initTokenClient({
     client_id:cid,
     scope:"openid email profile https://www.googleapis.com/auth/drive.metadata.readonly",
-    callback:onToken
+    callback:onToken, error_callback:onTokenError
   });
-  $("#signinBtn").addEventListener("click",()=>{
-    $("#gateErr").hidden=true;$("#signinBtn").disabled=true;
-    stepState("auth","active");
-    tokenClient.requestAccessToken({prompt:""});
-  });
-  $("#switchAcct").addEventListener("click",()=>{
-    $("#gateErr").hidden=true;
-    tokenClient.requestAccessToken({prompt:"select_account"});
-  });
+  $("#signinBtn").addEventListener("click",()=>{$("#gateErr").hidden=true;$("#signinBtn").disabled=true;stepState("auth","active");try{tokenClient.requestAccessToken({prompt:"",hint:loadHint()||undefined});}catch(e){onTokenError({type:"popup_failed_to_open"});}});
+  $("#switchAcct").addEventListener("click",()=>{$("#gateErr").hidden=true;tokenClient.requestAccessToken({prompt:"select_account"});});
 }
-
+function onTokenError(err){
+  stepState("auth","fail");resetSignin();
+  if(err&&err.type==="popup_failed_to_open")showGateError("El navegador bloqueó la ventana de Google","Permite las ventanas emergentes para este sitio y vuelve a intentar. Si la ves dentro de un marco, ábrela en su propia pestaña.","");
+  else if(err&&err.type==="popup_closed")showGateError("Inicio cancelado","Se cerró la ventana antes de terminar.","");
+  else showGateError("No se pudo iniciar sesión","Intenta de nuevo.","");
+}
 async function onToken(resp){
-  if(resp.error){stepState("auth","fail");showGateError("Inicio cancelado","No se completó el acceso con Google.");return;}
+  if(resp.error){stepState("auth","fail");resetSignin();showGateError("Inicio cancelado","No se completó el acceso con Google.","");return;}
   SESSION.token=resp.access_token;
   try{
-    // 1) Perfil
     const u=await fetch("https://www.googleapis.com/oauth2/v3/userinfo",{headers:{Authorization:"Bearer "+SESSION.token}}).then(r=>r.json());
     SESSION.profile={name:u.name||u.email,email:u.email,picture:u.picture};
+    saveAuth(SESSION.token,resp.expires_in,SESSION.profile);saveHint(SESSION.profile.email);
     stepState("auth","done");
-
-    // 2) Verificar acceso a la carpeta (Drive enforce la lista de permisos)
     stepState("verify","active");
-    const fid=ERP_CONFIG.auth.DRIVE_FOLDER_ID;
-    const r=await fetch(`https://www.googleapis.com/drive/v3/files/${fid}?fields=id,name,capabilities/canEdit&supportsAllDrives=true`,
-                        {headers:{Authorization:"Bearer "+SESSION.token}});
-    if(r.status===200){
-      const f=await r.json();
-      SESSION.role = f.capabilities&&f.capabilities.canEdit ? "Editor" : "Lector";
-      stepState("verify","done");
-      stepState("load","active");
-      setTimeout(()=>enterApp(SESSION.profile,false,f.name),500);
-    }else{
-      stepState("verify","fail");
-      showGateError(
-        "Cuenta sin acceso",
-        "Esta cuenta no tiene permiso sobre la carpeta de la plataforma. Pide al administrador que te comparta la carpeta en Drive.",
-        SESSION.profile.email
-      );
-    }
-  }catch(err){
-    stepState("verify","fail");
-    showGateError("Error de verificación","No se pudo contactar a Google Drive. Revisa la conexión e inténtalo de nuevo.",SESSION.profile?.email||"");
-  }
+    const fid=APP_CONFIG.auth.DRIVE_FOLDER_ID;
+    const r=await fetch(`https://www.googleapis.com/drive/v3/files/${fid}?fields=id,name,capabilities/canEdit&supportsAllDrives=true`,{headers:{Authorization:"Bearer "+SESSION.token}});
+    if(r.status===200){const f=await r.json();SESSION.role=f.capabilities&&f.capabilities.canEdit?"Editor":"Lector";stepState("verify","done");stepState("load","active");setTimeout(()=>enterApp(SESSION.profile,false),400);}
+    else{stepState("verify","fail");resetSignin();showGateError("Cuenta sin acceso","Esta cuenta no tiene permiso sobre la carpeta. Pide al administrador que te la comparta en Drive.",SESSION.profile.email);}
+  }catch(err){stepState("verify","fail");resetSignin();showGateError("Error de verificación","No se pudo contactar a Google Drive. Revisa la conexión.",SESSION.profile?.email||"");}
 }
-
-function enterApp(profile,demo,folderName){
+async function enterApp(profile,demo){
   SESSION.profile=profile;
-  const role = demo? "Demo" : SESSION.role;
-  // top bar
-  const initials=(profile.name||"U").split(" ").map(s=>s[0]).slice(0,2).join("").toUpperCase();
-  if(profile.picture){$("#avatar").outerHTML=`<img id="avatar" src="${profile.picture}" alt="">`;}
-  else $("#avatar").textContent=initials;
-  $("#uName").textContent=profile.name;
-  $("#uRole").textContent=role;
-  $("#mName").textContent=profile.name;
-  $("#mEmail").textContent=profile.email;
-  $("#heroName").textContent=profile.name?`, ${profile.name.split(" ")[0]}`:"";
-
-  // readout
-  $("#vEnv").textContent=ERP_CONFIG.auth.ENV;
-  $("#ver").textContent=ERP_CONFIG.auth.VERSION;
-  $("#vSync").textContent=new Date().toLocaleString("es-CR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
-  if(demo){$("#vDrive").textContent="Modo demo";$("#pipDrive").className="pip warn";}
-  else if(folderName){$("#vDrive").textContent=folderName;}
-  // backend
-  if(ERP_CONFIG.auth.APPS_SCRIPT_URL){$("#vBackend").textContent="Conectado";$("#pipBackend").className="pip ok";}
-
-  // mostrar app
-  $("#gate").hidden=true;
-  $("#app").hidden=false;
+  const role=demo?"Demo":SESSION.role;
+  const ini=initials(profile.name);
+  if(profile.picture)$("#avatar").outerHTML=`<img id="avatar" src="${profile.picture}" alt="">`;else $("#avatar").textContent=ini;
+  $("#uName").textContent=profile.name;$("#uRole").textContent=role;
+  $("#mName").textContent=profile.name;$("#mEmail").textContent=profile.email;
+  // almacenamiento
+  if(USE_DRIVE()){$("#sStore").textContent="Drive";$("#pipStore").className="pip ok";}
+  else{$("#sStore").textContent="Local";$("#pipStore").className="pip warn";$("#storeBanner").hidden=false;}
+  $("#gate").hidden=true;$("#app").hidden=false;
+  // cargar datos
+  $("#content").innerHTML='<div class="loading"><span class="spin"></span> Cargando contactos…</div>';
+  try{await reload();}catch(e){$("#content").innerHTML=`<div class="empty"><h3>No se pudieron cargar</h3><p>${esc(e.message)}. Revisa APPS_SCRIPT_URL.</p></div>`;}
 }
+function signOut(){clearAuth();if(SESSION.token&&window.google&&google.accounts?.oauth2)google.accounts.oauth2.revoke(SESSION.token,()=>{});location.reload();}
 
-function signOut(){
-  if(SESSION.token&&google.accounts?.oauth2)google.accounts.oauth2.revoke(SESSION.token,()=>{});
-  location.reload();
+/* ════════════ ARRANQUE ════════════ */
+function resetGate(){["auth","verify","load"].forEach((n,i)=>{const el=document.querySelector(`.step[data-step="${n}"]`);if(el){el.classList.remove("active","done","fail");el.querySelector(".sx").textContent=String(i+1);}});$("#signinLbl").textContent="Continuar con Google";$("#signinBtn").disabled=false;$("#gateErr").hidden=true;}
+function waitGIS(fn){const w=setInterval(()=>{if(window.google&&google.accounts){clearInterval(w);fn();}},120);setTimeout(()=>{if(!window.google||!google.accounts)fn();},2500);}
+async function trySilent(cached){
+  SESSION.token=cached.token;SESSION.profile=cached.profile||null;
+  $("#signinLbl").textContent="Reanudando sesión…";$("#signinBtn").disabled=true;
+  stepState("auth","done");stepState("verify","active");
+  try{
+    let prof=SESSION.profile;
+    if(!prof){const u=await fetch("https://www.googleapis.com/oauth2/v3/userinfo",{headers:{Authorization:"Bearer "+cached.token}});if(!u.ok)throw 0;const j=await u.json();prof={name:j.name||j.email,email:j.email,picture:j.picture};SESSION.profile=prof;}
+    const fid=APP_CONFIG.auth.DRIVE_FOLDER_ID;
+    const r=await fetch(`https://www.googleapis.com/drive/v3/files/${fid}?fields=id,name,capabilities/canEdit&supportsAllDrives=true`,{headers:{Authorization:"Bearer "+cached.token}});
+    if(r.status!==200)throw 0;
+    const f=await r.json();SESSION.role=f.capabilities&&f.capabilities.canEdit?"Editor":"Lector";
+    stepState("verify","done");stepState("load","active");enterApp(prof,false);
+  }catch(e){clearAuth();resetGate();waitGIS(initAuth);}
 }
-
-/* ══════════════ ARRANQUE ══════════════ */
-function boot(){
-  $("#yr").textContent=new Date().getFullYear();
-  renderChannels();renderShared();renderFavs();
-  bindGrid();bindSearch();bindMenus();
-  animateWave();
-  // esperar a GIS
-  const wait=setInterval(()=>{
-    if(window.google&&google.accounts){clearInterval(wait);initAuth();}
-  },120);
-  setTimeout(()=>{ // si GIS no carga (offline), igual permite demo si aplica
-    if(!window.google||!google.accounts){initAuth();}
-  },2500);
-}
-
-/* animación sutil del waveform (firma) — respeta reduced-motion */
-function animateWave(){
-  if(window.matchMedia("(prefers-reduced-motion:reduce)").matches)return;
-  const p=$("#wavePath");if(!p)return;let t=0;
-  (function frame(){
-    t+=0.03;let d="M0 60";
-    for(let x=0;x<=800;x+=20){const y=60+Math.sin((x/55)+t)*10*Math.cos(x/400+t/3);d+=` L${x} ${y.toFixed(1)}`;}
-    p.setAttribute("d",d);requestAnimationFrame(frame);
-  })();
-}
-
+function start(){const c=loadAuth();if(c){trySilent(c);}else{waitGIS(initAuth);}}
+function boot(){bindUI();start();}
 document.addEventListener("DOMContentLoaded",boot);
 </script>
 </body>
