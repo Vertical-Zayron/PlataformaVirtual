@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>V-Xylog · ERP</title>
+
+<!-- ════════════════════════════════════════════════════════════════
+     VERTICAL XYLOG — PÁGINA PRINCIPAL DEL ERP
+     Archivo único para GitHub Pages. Backend: Google Apps Script + Drive.
+     Auth: Google Identity Services. Verificación de acceso vía Drive API.
+
+     >>> CONFIGURACIÓN: ver el objeto ERP_CONFIG al inicio del <script>.
+         Llena CLIENT_ID, DRIVE_FOLDER_ID y (opcional) APPS_SCRIPT_URL.
+     ════════════════════════════════════════════════════════════════ -->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  /* ── Estructura / tinta ── */
+  --ink:#16202c; --ink-2:#2b3947; --muted:#61707f; --faint:#8c99a6;
+  --paper:#f5f7f9; --surface:#ffffff; --surface-2:#fbfcfd;
+  --line:#e4e8ec; --line-strong:#d2d8de;
+
+  /* ── Acentos por división ── */
+  --wave:#0e94a8; --wave-bright:#16c6dc; --wave-soft:#e6f7fa; --wave-ink:#06525f;
+  --eps:#2d54d4; --eps-bright:#4e7bff; --eps-soft:#eaf0ff; --eps-ink:#16307e;
+
+  /* ── Estado ── */
+  --signal:#dd8a2b; --ok:#1e9e63; --warn:#d24c47;
+
+  --shadow-sm:0 1px 2px rgba(22,32,44,.05),0 1px 1px rgba(22,32,44,.04);
+  --shadow-md:0 6px 24px -10px rgba(22,32,44,.18),0 2px 6px -2px rgba(22,32,44,.08);
+  --shadow-lg:0 30px 60px -20px rgba(22,32,44,.35);
+
+  --font-display:'Archivo',system-ui,sans-serif;
+  --font-ui:'IBM Plex Sans',system-ui,sans-serif;
+  --font-mono:'IBM Plex Mono',ui-monospace,monospace;
+
+  --r:14px; --r-sm:10px;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font-family:var(--font-ui); color:var(--ink); background:var(--paper);
+  -webkit-font-smoothing:antialiased; line-height:1.5;
+  background-image:
+    radial-gradient(1200px 600px at 85% -8%, rgba(45,84,212,.05), transparent 60%),
+    radial-gradient(900px 500px at 5% -5%, rgba(14,148,168,.06), transparent 55%);
+}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none}
+.mono{font-family:var(--font-mono)}
+[hidden]{display:none !important}
+
+/* ════════ TOP BAR ════════ */
+.topbar{
+  position:sticky; top:0; z-index:40;
+  display:flex; align-items:center; gap:18px;
+  padding:0 24px; height:60px;
+  background:rgba(255,255,255,.82); backdrop-filter:saturate(160%) blur(12px);
+  border-bottom:1px solid var(--line);
+}
+.brand{display:flex; align-items:center; gap:11px; flex-shrink:0}
+.brand .glyph{width:30px;height:30px;display:block}
+.brand .wm{display:flex;flex-direction:column;line-height:1}
+.brand .wm .a{
+  font-family:var(--font-display); font-weight:900; letter-spacing:-.02em;
+  font-size:16px; color:var(--ink);
+}
+.brand .wm .b{
+  font-family:var(--font-mono); font-size:9.5px; letter-spacing:.22em;
+  color:var(--faint); margin-top:3px; text-transform:uppercase;
+}
+.topbar .sep{width:1px;height:26px;background:var(--line);flex-shrink:0}
+
+.searchbox{
+  flex:1; max-width:420px; display:flex; align-items:center; gap:9px;
+  padding:0 12px; height:38px; border:1px solid var(--line);
+  border-radius:10px; background:var(--surface-2); color:var(--muted);
+  transition:border-color .15s, background .15s;
+}
+.searchbox:focus-within{border-color:var(--wave); background:#fff}
+.searchbox input{
+  flex:1; border:none; outline:none; background:none;
+  font-family:var(--font-ui); font-size:14px; color:var(--ink);
+}
+.searchbox kbd{
+  font-family:var(--font-mono); font-size:11px; color:var(--faint);
+  border:1px solid var(--line-strong); border-bottom-width:2px;
+  border-radius:6px; padding:1px 6px; background:#fff;
+}
+.topbar .spacer{flex:1}
+
+.iconbtn{
+  width:38px;height:38px;border-radius:10px;border:1px solid transparent;
+  display:grid;place-items:center;color:var(--muted);position:relative;
+  transition:background .15s,color .15s,border-color .15s;
+}
+.iconbtn:hover{background:var(--surface-2);color:var(--ink);border-color:var(--line)}
+.iconbtn .dot{
+  position:absolute;top:8px;right:9px;width:7px;height:7px;border-radius:50%;
+  background:var(--signal);border:2px solid #fff;
+}
+
+.userchip{
+  display:flex;align-items:center;gap:9px;height:40px;padding:3px 10px 3px 4px;
+  border:1px solid var(--line);border-radius:999px;background:var(--surface);
+  transition:box-shadow .15s,border-color .15s;
+}
+.userchip:hover{box-shadow:var(--shadow-sm);border-color:var(--line-strong)}
+.userchip img,.userchip .av{
+  width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;
+  background:var(--wave-soft);display:grid;place-items:center;
+  font-family:var(--font-display);font-weight:700;font-size:13px;color:var(--wave-ink);
+}
+.userchip .who{display:flex;flex-direction:column;line-height:1.15;max-width:150px}
+.userchip .who .n{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.userchip .who .r{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+
+/* ════════ DROPDOWN ════════ */
+.menu{
+  position:absolute;top:54px;right:24px;z-index:50;width:280px;
+  background:#fff;border:1px solid var(--line);border-radius:var(--r);
+  box-shadow:var(--shadow-md);padding:8px;
+}
+.menu .mhead{padding:12px 12px 10px;border-bottom:1px solid var(--line);margin-bottom:6px}
+.menu .mhead .e{font-size:13px;font-weight:600}
+.menu .mhead .s{font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:3px}
+.menu button.mi{
+  width:100%;display:flex;align-items:center;gap:11px;padding:10px 12px;
+  border-radius:9px;font-size:13.5px;color:var(--ink-2);text-align:left;
+}
+.menu button.mi:hover{background:var(--surface-2)}
+.menu button.mi svg{color:var(--faint)}
+.menu button.mi.danger{color:var(--warn)}
+.menu button.mi.danger svg{color:var(--warn)}
+
+/* ════════ LAYOUT ════════ */
+.wrap{max-width:1220px;margin:0 auto;padding:0 24px}
+
+/* ── HERO / readout ── */
+.hero{padding:38px 0 26px;position:relative}
+.eyebrow{
+  font-family:var(--font-mono);font-size:11px;letter-spacing:.24em;
+  text-transform:uppercase;color:var(--wave);font-weight:500;
+}
+.hero h1{
+  font-family:var(--font-display);font-weight:800;letter-spacing:-.025em;
+  font-size:clamp(28px,4vw,40px);margin:12px 0 6px;line-height:1.04;
+}
+.hero h1 em{font-style:normal;color:var(--muted);font-weight:600}
+.hero .sub{color:var(--muted);font-size:15px;max-width:560px}
+
+/* readout strip (firma) */
+.readout{
+  margin-top:24px;display:flex;flex-wrap:wrap;gap:0;
+  border:1px solid var(--line);border-radius:var(--r);overflow:hidden;
+  background:linear-gradient(180deg,#fff,var(--surface-2));position:relative;
+}
+.readout .wavebg{position:absolute;inset:0;width:100%;height:100%;opacity:.5;pointer-events:none}
+.stat{
+  flex:1;min-width:165px;padding:16px 20px;position:relative;z-index:1;
+  border-right:1px solid var(--line);
+}
+.stat:last-child{border-right:none}
+.stat .lab{
+  font-family:var(--font-mono);font-size:10.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--faint);display:flex;align-items:center;gap:7px;
+}
+.stat .val{font-family:var(--font-display);font-weight:700;font-size:19px;margin-top:7px;letter-spacing:-.01em}
+.stat .val.sm{font-size:15px}
+.pip{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0}
+.pip.ok{background:var(--ok);box-shadow:0 0 0 3px rgba(30,158,99,.16)}
+.pip.warn{background:var(--signal);box-shadow:0 0 0 3px rgba(221,138,43,.16)}
+.pip.off{background:var(--faint);box-shadow:0 0 0 3px rgba(140,153,166,.16)}
+
+/* ── section heading ── */
+.sec{padding:8px 0 4px}
+.sec-h{display:flex;align-items:baseline;gap:14px;margin:34px 0 16px}
+.sec-h .t{font-family:var(--font-display);font-weight:700;font-size:13px;letter-spacing:.04em;text-transform:uppercase}
+.sec-h .ln{flex:1;height:1px;background:var(--line)}
+.sec-h .c{font-family:var(--font-mono);font-size:11px;color:var(--faint)}
+
+/* ── quick access chips ── */
+.chips{display:flex;flex-wrap:wrap;gap:9px;margin-bottom:6px}
+.chip{
+  display:flex;align-items:center;gap:8px;height:34px;padding:0 13px;
+  border:1px solid var(--line);border-radius:999px;background:#fff;
+  font-size:13px;font-weight:500;color:var(--ink-2);transition:.15s;
+}
+.chip:hover{border-color:var(--line-strong);box-shadow:var(--shadow-sm);transform:translateY(-1px)}
+.chip svg{color:var(--faint)}
+.chip.empty{color:var(--faint);border-style:dashed;cursor:default}
+.chip.empty:hover{transform:none;box-shadow:none;border-color:var(--line)}
+
+/* ════════ CANALES / DIVISIONES (firma) ════════ */
+.channels{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:6px}
+.channel{
+  border:1px solid var(--line);border-radius:18px;background:var(--surface);
+  overflow:hidden;box-shadow:var(--shadow-sm);position:relative;
+}
+.channel::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px}
+.channel.wave::before{background:linear-gradient(180deg,var(--wave-bright),var(--wave))}
+.channel.eps::before{background:linear-gradient(180deg,var(--eps-bright),var(--eps))}
+
+.ch-head{padding:20px 22px 16px;border-bottom:1px solid var(--line);position:relative}
+.ch-head .badge{
+  font-family:var(--font-mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+  padding:3px 8px;border-radius:6px;display:inline-block;font-weight:500;
+}
+.channel.wave .badge{background:var(--wave-soft);color:var(--wave-ink)}
+.channel.eps .badge{background:var(--eps-soft);color:var(--eps-ink)}
+.ch-head h2{font-family:var(--font-display);font-weight:800;font-size:22px;letter-spacing:-.02em;margin:11px 0 4px}
+.ch-head .d{font-size:13px;color:var(--muted)}
+.ch-head .scope{position:absolute;right:18px;top:18px;width:74px;height:30px;opacity:.8}
+
+.toolgrid{padding:14px;display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.tool{
+  display:flex;flex-direction:column;gap:0;padding:15px;border-radius:var(--r-sm);
+  border:1px solid var(--line);background:var(--surface-2);
+  transition:transform .14s,box-shadow .14s,border-color .14s,background .14s;
+  position:relative;min-height:118px;
+}
+.tool.live:hover{transform:translateY(-3px);box-shadow:var(--shadow-md);background:#fff}
+.channel.wave .tool.live:hover{border-color:var(--wave)}
+.channel.eps .tool.live:hover{border-color:var(--eps)}
+.tool.soon{border-style:dashed;background:transparent;cursor:default}
+.tool .ic{
+  width:38px;height:38px;border-radius:10px;display:grid;place-items:center;margin-bottom:11px;
+}
+.channel.wave .tool .ic{background:var(--wave-soft);color:var(--wave-ink)}
+.channel.eps .tool .ic{background:var(--eps-soft);color:var(--eps-ink)}
+.tool.soon .ic{background:#eef1f4;color:var(--faint)}
+.tool .nm{font-weight:600;font-size:14px;letter-spacing:-.01em;display:flex;align-items:center;gap:7px}
+.tool .ds{font-size:12px;color:var(--muted);margin-top:4px;flex:1}
+.tool .fav{
+  position:absolute;top:11px;right:11px;width:26px;height:26px;border-radius:7px;
+  display:grid;place-items:center;color:var(--faint);opacity:0;transition:.15s;
+}
+.tool:hover .fav{opacity:1}
+.tool .fav.on{opacity:1;color:var(--signal)}
+.tool .fav:hover{background:#fff;color:var(--signal)}
+
+.tag{
+  font-family:var(--font-mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;
+  padding:2px 6px;border-radius:5px;font-weight:500;
+}
+.tag.beta{background:#fdf2e3;color:var(--signal)}
+.tag.soon{background:#eef1f4;color:var(--faint)}
+.tag.live{background:#e8f6ee;color:var(--ok)}
+
+.addtool{
+  display:grid;place-items:center;border:1px dashed var(--line-strong);border-radius:var(--r-sm);
+  color:var(--faint);font-size:12.5px;min-height:118px;gap:8px;background:transparent;
+  font-family:var(--font-mono);letter-spacing:.04em;transition:.15s;
+}
+.addtool:hover{border-color:var(--muted);color:var(--muted)}
+
+/* ── shared modules ── */
+.modgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:14px}
+.mod{
+  display:flex;gap:14px;padding:18px;border-radius:var(--r);border:1px solid var(--line);
+  background:var(--surface);transition:transform .14s,box-shadow .14s,border-color .14s;align-items:flex-start;
+}
+.mod.live:hover{transform:translateY(-3px);box-shadow:var(--shadow-md);border-color:var(--line-strong)}
+.mod.soon{border-style:dashed;background:transparent}
+.mod .mi{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;flex-shrink:0;background:var(--paper);color:var(--ink-2)}
+.mod.soon .mi{color:var(--faint)}
+.mod .mt{font-weight:600;font-size:15px;letter-spacing:-.01em;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.mod .md{font-size:12.5px;color:var(--muted);margin-top:4px}
+
+/* ── footer ── */
+footer{margin-top:56px;border-top:1px solid var(--line);background:rgba(255,255,255,.5)}
+.foot{display:flex;flex-wrap:wrap;gap:20px;align-items:center;padding:20px 0;font-family:var(--font-mono);font-size:11.5px;color:var(--faint)}
+.foot .fb{display:flex;align-items:center;gap:7px}
+.foot .spacer{flex:1}
+.foot a:hover{color:var(--ink)}
+
+/* ════════ GATE / LOGIN OVERLAY ════════ */
+.gate{
+  position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:24px;
+  background:
+    radial-gradient(900px 480px at 80% 0%,rgba(45,84,212,.10),transparent 60%),
+    radial-gradient(800px 460px at 10% 100%,rgba(14,148,168,.12),transparent 60%),
+    #0f1822;
+}
+.card{
+  width:100%;max-width:430px;background:#fff;border-radius:20px;
+  box-shadow:var(--shadow-lg);overflow:hidden;
+}
+.card .top{padding:30px 32px 22px;border-bottom:1px solid var(--line);text-align:center}
+.card .top .glyph{width:46px;height:46px;margin:0 auto 14px;display:block}
+.card .top .a{font-family:var(--font-display);font-weight:900;font-size:21px;letter-spacing:-.02em}
+.card .top .b{font-family:var(--font-mono);font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--faint);margin-top:6px}
+.card .body{padding:26px 32px 30px}
+.card h3{font-family:var(--font-display);font-weight:700;font-size:17px;margin:0 0 6px;text-align:center}
+.card .lead{font-size:13.5px;color:var(--muted);text-align:center;margin:0 0 22px;line-height:1.5}
+
+.gbtn{
+  width:100%;height:48px;border-radius:11px;border:1px solid var(--line-strong);
+  background:#fff;display:flex;align-items:center;justify-content:center;gap:11px;
+  font-size:15px;font-weight:600;color:var(--ink);transition:.15s;
+}
+.gbtn:hover{box-shadow:var(--shadow-sm);border-color:var(--muted);background:var(--surface-2)}
+.gbtn:disabled{opacity:.5;cursor:default}
+
+.steps{margin-top:22px;display:flex;flex-direction:column;gap:2px}
+.step{display:flex;align-items:center;gap:12px;padding:10px 4px;font-size:13px;color:var(--faint)}
+.step .sx{
+  width:24px;height:24px;border-radius:50%;border:1.5px solid var(--line-strong);
+  display:grid;place-items:center;flex-shrink:0;font-family:var(--font-mono);font-size:11px;
+  transition:.2s;
+}
+.step.active{color:var(--ink-2);font-weight:500}
+.step.active .sx{border-color:var(--wave);color:var(--wave)}
+.step.done{color:var(--muted)}
+.step.done .sx{background:var(--ok);border-color:var(--ok);color:#fff}
+.step.fail .sx{background:var(--warn);border-color:var(--warn);color:#fff}
+.step.fail{color:var(--warn)}
+.spin{width:14px;height:14px;border:2px solid var(--line-strong);border-top-color:var(--wave);border-radius:50%;animation:sp .7s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+.gate-msg{
+  margin-top:18px;padding:13px 15px;border-radius:11px;font-size:13px;line-height:1.5;
+  display:flex;gap:11px;align-items:flex-start;
+}
+.gate-msg.err{background:#fdeceb;color:#8f2e2a;border:1px solid #f6d3d1}
+.gate-msg.warn{background:#fdf6e9;color:#8a5a16;border:1px solid #f5e3c2}
+.gate-msg svg{flex-shrink:0;margin-top:1px}
+.gate-msg .ghost{margin-top:10px;font-family:var(--font-mono);font-size:11px;color:var(--muted);word-break:break-all}
+.gate-foot{text-align:center;margin-top:20px;font-size:12px;color:var(--faint)}
+.gate-foot button{color:var(--wave);font-weight:600;font-size:12px}
+.gate-foot button:hover{text-decoration:underline}
+
+/* ════════ TOAST ════════ */
+.toast-wrap{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:120;display:flex;flex-direction:column;gap:8px;align-items:center}
+.toast{
+  background:var(--ink);color:#fff;padding:11px 18px;border-radius:11px;font-size:13.5px;
+  box-shadow:var(--shadow-lg);display:flex;align-items:center;gap:10px;
+  animation:tin .25s ease;max-width:90vw;
+}
+@keyframes tin{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* ════════ RESPONSIVE ════════ */
+@media(max-width:900px){
+  .channels{grid-template-columns:1fr}
+  .searchbox{max-width:none}
+}
+@media(max-width:620px){
+  .topbar{gap:10px;padding:0 14px}
+  .searchbox{display:none}
+  .wrap{padding:0 16px}
+  .userchip .who{display:none}
+  .toolgrid{grid-template-columns:1fr}
+  .readout .stat{min-width:50%}
+}
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms !important;transition-duration:.05ms !important}
+  .wavebg{display:none}
+}
+:focus-visible{outline:2px solid var(--wave);outline-offset:2px;border-radius:4px}
+</style>
+</head>
+<body>
+
+<!-- ░░░░░░░░░░ GATE (login + verificación) ░░░░░░░░░░ -->
+<div class="gate" id="gate">
+  <div class="card">
+    <div class="top">
+      <svg class="glyph" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+        <rect x="6"  y="20" width="6" height="22" rx="2" fill="#0e94a8"/>
+        <rect x="16" y="12" width="6" height="30" rx="2" fill="#2d54d4"/>
+        <rect x="26" y="6"  width="6" height="36" rx="2" fill="#16202c"/>
+        <path d="M4 16 q6 -10 12 0 t12 0 t12 0" stroke="#16c6dc" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+      </svg>
+      <div class="a">Vertical Xylog</div>
+      <div class="b">ERP · Plataforma interna</div>
+    </div>
+    <div class="body">
+      <h3>Inicia sesión</h3>
+      <p class="lead">Acceso restringido al personal con permiso sobre la carpeta de Drive del proyecto.</p>
+
+      <button class="gbtn" id="signinBtn">
+        <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.4 30.1 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.8 6.1C12.2 13.6 17.6 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.6c0-1.6-.1-3.1-.4-4.6H24v9.1h12.4c-.5 2.9-2.1 5.4-4.6 7l7.1 5.5c4.2-3.9 6.6-9.6 6.6-16z"/><path fill="#FBBC05" d="M10.4 28.7c-.5-1.5-.8-3-.8-4.7s.3-3.2.8-4.7l-7.8-6.1C1 16.5 0 20.1 0 24s1 7.5 2.6 10.8l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.1 0 11.3-2 15.1-5.5l-7.1-5.5c-2 1.3-4.6 2.1-8 2.1-6.4 0-11.8-4.1-13.6-9.8l-7.8 6.1C6.5 42.6 14.6 48 24 48z"/></svg>
+        <span id="signinLbl">Continuar con Google</span>
+      </button>
+
+      <div class="steps" id="steps">
+        <div class="step" data-step="auth"><span class="sx">1</span><span>Autenticar cuenta de Google</span></div>
+        <div class="step" data-step="verify"><span class="sx">2</span><span>Verificar acceso a la carpeta de Drive</span></div>
+        <div class="step" data-step="load"><span class="sx">3</span><span>Cargar plataforma</span></div>
+      </div>
+
+      <div class="gate-msg err" id="gateErr" hidden>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
+        <div>
+          <strong id="gateErrTitle">Sin acceso</strong>
+          <div id="gateErrBody" style="margin-top:3px"></div>
+          <div class="ghost" id="gateErrAcct"></div>
+        </div>
+      </div>
+
+      <div class="gate-foot">
+        <span id="gateHint">Tu acceso lo controla la lista de permisos de la carpeta en Drive.</span>
+        <div style="margin-top:8px"><button id="switchAcct" hidden>Usar otra cuenta</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ░░░░░░░░░░ APP ░░░░░░░░░░ -->
+<div id="app" hidden>
+
+  <!-- TOP BAR -->
+  <header class="topbar">
+    <a class="brand" href="#" id="homeLink">
+      <svg class="glyph" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+        <rect x="6"  y="20" width="6" height="22" rx="2" fill="#0e94a8"/>
+        <rect x="16" y="12" width="6" height="30" rx="2" fill="#2d54d4"/>
+        <rect x="26" y="6"  width="6" height="36" rx="2" fill="#16202c"/>
+        <path d="M4 16 q6 -10 12 0 t12 0 t12 0" stroke="#16c6dc" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+      </svg>
+      <span class="wm"><span class="a">V-Xylog</span><span class="b">ERP</span></span>
+    </a>
+    <div class="sep"></div>
+    <label class="searchbox">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="search" type="text" placeholder="Buscar herramientas, proyectos…" autocomplete="off">
+      <kbd>Ctrl K</kbd>
+    </label>
+    <div class="spacer"></div>
+
+    <button class="iconbtn" id="bellBtn" title="Anuncios"><span class="dot"></span>
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+    </button>
+    <button class="iconbtn" id="helpBtn" title="Ayuda">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 4.5 1.5c0 1.5-2 2-2 3"/><path d="M12 17h.01"/></svg>
+    </button>
+
+    <button class="userchip" id="userChip">
+      <span class="av" id="avatar">··</span>
+      <span class="who"><span class="n" id="uName">Usuario</span><span class="r" id="uRole">—</span></span>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--faint)" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+  </header>
+
+  <!-- USER MENU -->
+  <div class="menu" id="userMenu" hidden>
+    <div class="mhead"><div class="e" id="mName">—</div><div class="s" id="mEmail">—</div></div>
+    <button class="mi"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>Mi perfil y permisos</button>
+    <button class="mi"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12.2 2h-.4a2 2 0 0 0-2 2 1.7 1.7 0 0 1-2.6 1.5 2 2 0 0 0-2.7.7l-.3.5a2 2 0 0 0 .7 2.7A1.7 1.7 0 0 1 4 12a1.7 1.7 0 0 1-1 1.6 2 2 0 0 0-.7 2.7l.3.5a2 2 0 0 0 2.7.7A1.7 1.7 0 0 1 8 18.7a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2 1.7 1.7 0 0 1 2.6-1.5 2 2 0 0 0 2.7-.7l.3-.5a2 2 0 0 0-.7-2.7A1.7 1.7 0 0 1 20 12a1.7 1.7 0 0 1 1-1.6 2 2 0 0 0 .7-2.7l-.3-.5a2 2 0 0 0-2.7-.7A1.7 1.7 0 0 1 16 5.3a2 2 0 0 0-2-2Z"/><circle cx="12" cy="12" r="3"/></svg>Configuración</button>
+    <button class="mi" id="openDrive"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2Z"/></svg>Abrir carpeta en Drive</button>
+    <button class="mi danger" id="signoutBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/></svg>Cerrar sesión</button>
+  </div>
+
+  <main class="wrap">
+
+    <!-- HERO -->
+    <section class="hero">
+      <div class="eyebrow">Plataforma interna · Vertical Xylog</div>
+      <h1>Bienvenido<span id="heroName"></span> <em>— centro de herramientas</em></h1>
+      <p class="sub">Acceso unificado a cotización, proyectos y portal de cliente para las divisiones WaveSense y Epsilon Water Technology.</p>
+
+      <!-- READOUT (firma) -->
+      <div class="readout">
+        <svg class="wavebg" viewBox="0 0 800 100" preserveAspectRatio="none" aria-hidden="true">
+          <path id="wavePath" d="M0 60 Q 50 20 100 60 T 200 60 T 300 60 T 400 60 T 500 60 T 600 60 T 700 60 T 800 60"
+                fill="none" stroke="url(#wg)" stroke-width="2"/>
+          <defs><linearGradient id="wg" x1="0" x2="1"><stop offset="0" stop-color="#16c6dc" stop-opacity="0"/><stop offset=".5" stop-color="#16c6dc" stop-opacity=".55"/><stop offset="1" stop-color="#2d54d4" stop-opacity="0"/></linearGradient></defs>
+        </svg>
+        <div class="stat"><div class="lab"><span class="pip ok" id="pipDrive"></span>Carpeta de Drive</div><div class="val sm" id="vDrive">Acceso verificado</div></div>
+        <div class="stat"><div class="lab"><span class="pip off" id="pipBackend"></span>Backend Apps Script</div><div class="val sm" id="vBackend">No configurado</div></div>
+        <div class="stat"><div class="lab"><span class="pip ok"></span>Entorno</div><div class="val sm" id="vEnv">Producción</div></div>
+        <div class="stat"><div class="lab">Última sincronización</div><div class="val sm mono" id="vSync">—</div></div>
+      </div>
+    </section>
+
+    <!-- ACCESOS RÁPIDOS -->
+    <section class="sec">
+      <div class="sec-h"><span class="t">Accesos rápidos</span><span class="ln"></span><span class="c">Marca tus favoritos con la estrella</span></div>
+      <div class="chips" id="favChips"></div>
+    </section>
+
+    <!-- CANALES / DIVISIONES -->
+    <section class="sec">
+      <div class="sec-h"><span class="t">Divisiones</span><span class="ln"></span><span class="c" id="divCount">—</span></div>
+      <div class="channels" id="channels"></div>
+    </section>
+
+    <!-- MÓDULOS COMPARTIDOS -->
+    <section class="sec">
+      <div class="sec-h"><span class="t">General &amp; administración</span><span class="ln"></span><span class="c">Transversal a toda la empresa</span></div>
+      <div class="modgrid" id="shared"></div>
+    </section>
+
+  </main>
+
+  <footer>
+    <div class="wrap foot">
+      <span class="fb">© <span id="yr"></span> Vertical Xylog</span>
+      <span class="fb">·</span>
+      <span class="fb mono" id="ver">erp v0.1.0</span>
+      <span class="spacer"></span>
+      <a href="#" class="fb">Documentación</a>
+      <a href="#" class="fb">Registro de cambios</a>
+      <a href="#" class="fb">Soporte</a>
+    </div>
+  </footer>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<!-- Google Identity Services -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════
+   CONFIGURACIÓN CENTRAL
+   Para agregar/quitar herramientas: edita ERP_CONFIG.divisions / .shared.
+   Cada herramienta: { id, name, desc, url, icon, status }
+     status: 'live'  → enlace activo
+             'beta'  → activo, en pruebas
+             'soon'  → prevista (placeholder, sin enlace todavía)
+   ══════════════════════════════════════════════════════════════════ */
+const ERP_CONFIG = {
+  /* ---- Autenticación / backend (LLENAR) ---- */
+  auth:{
+    CLIENT_ID:      "248534124825-vhodg6tjk2ql0la7urg0n3gphg294l0p.apps.googleusercontent.com",  // OAuth Web client (Google Cloud)
+    DRIVE_FOLDER_ID:"1ewKPyNiTD9q4JLg1tFOph7bjL_UvPZS5",                // carpeta raíz de la plataforma
+    APPS_SCRIPT_URL:"",                                          // (opcional) URL /exec del Web App
+    ENV:"Producción",                                            // o "Pruebas"
+    VERSION:"erp v0.1.0"
+  },
+
+  /* ---- Divisiones (canales) ---- */
+  divisions:[
+    {
+      id:"wavesense", cls:"wave", name:"WaveSense",
+      tagline:"Sensórica y dispositivos · cotización por equipo",
+      tools:[
+        // Las cotizaciones de WaveSense varían según el dispositivo:
+        // se dejan previstas para enlazar cada cotizador especializado.
+        {id:"ws-cot-a", name:"Cotizador — Equipo A", desc:"Configurador y cotización del dispositivo A.", url:"", icon:"calc", status:"soon"},
+        {id:"ws-cot-b", name:"Cotizador — Equipo B", desc:"Configurador y cotización del dispositivo B.", url:"", icon:"calc", status:"soon"},
+        {id:"ws-cot-c", name:"Cotizador — Equipo C", desc:"Variante con lógica de transductores CT/VT.", url:"", icon:"wave", status:"soon"},
+        {id:"ws-energy", name:"Energy Monitor", desc:"Configurador de tableros + cotización multipágina.", url:"", icon:"chart", status:"soon"},
+        {id:"ws-cat", name:"Catálogo técnico", desc:"Fichas, dimensiones y diagramas SVG de equipos.", url:"", icon:"book", status:"soon"}
+      ]
+    },
+    {
+      id:"epsilon", cls:"eps", name:"Epsilon Water Technology",
+      tagline:"Tecnología de agua · plantas y tratamiento",
+      tools:[
+        {id:"ep-cot", name:"Cotizador de plantas", desc:"Dimensionamiento y cotización de sistemas.", url:"", icon:"drop", status:"soon"},
+        {id:"ep-cat", name:"Catálogo de productos", desc:"Líneas de tratamiento y componentes.", url:"", icon:"book", status:"soon"},
+        {id:"ep-spec", name:"Generador de fichas", desc:"Hojas técnicas y memorias de cálculo.", url:"", icon:"doc", status:"soon"}
+      ]
+    }
+  ],
+
+  /* ---- Módulos transversales ---- */
+  shared:[
+    {id:"clientes", name:"Portal de cliente", desc:"Vista pública: productos y solicitud de cotización.", url:"", icon:"store", status:"soon", tag:"Externo"},
+    {id:"proyectos", name:"Proyectos", desc:"Lista de proyectos con galería de fotos, cotizaciones y documentos.", url:"", icon:"layers", status:"soon"},
+    {id:"galeria", name:"Galería de fotos", desc:"Documentación fotográfica vinculada a Drive.", url:"", icon:"image", status:"soon"},
+    {id:"cotizaciones", name:"Cotizaciones", desc:"Registro central y seguimiento de cotizaciones emitidas.", url:"", icon:"file", status:"soon"},
+    {id:"clientes-db", name:"Clientes & contactos", desc:"Directorio de clientes, contactos y oportunidades.", url:"", icon:"users", status:"soon"},
+    {id:"reportes", name:"Reportes & tableros", desc:"Indicadores de ventas, proyectos y producción.", url:"", icon:"chart", status:"soon"},
+    {id:"admin", name:"Administración", desc:"Usuarios, permisos de carpeta y parámetros del sistema.", url:"", icon:"shield", status:"soon", tag:"Admin"},
+    {id:"audit", name:"Registro de actividad", desc:"Bitácora de accesos y acciones para auditoría.", url:"", icon:"activity", status:"soon", tag:"Admin"}
+  ]
+};
+
+/* ══════════════ ÍCONOS (inline SVG) ══════════════ */
+const ICONS={
+  calc:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15v2M8 18h4"/>',
+  wave:'<path d="M2 12s2-5 5-5 3 10 6 10 5-5 5-5"/>',
+  chart:'<path d="M3 3v18h18"/><path d="M7 14l3-4 3 3 4-6"/>',
+  drop:'<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11Z"/>',
+  book:'<path d="M4 5a2 2 0 0 1 2-2h13v18H6a2 2 0 0 1-2-2Z"/><path d="M8 3v18"/>',
+  doc:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>',
+  store:'<path d="M3 9 4 4h16l1 5"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/><path d="M3 9h18"/>',
+  layers:'<path d="m12 2 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5M3 17l9 5 9-5"/>',
+  image:'<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/>',
+  file:'<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/>',
+  users:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/>',
+  shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/>',
+  activity:'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>'
+};
+function icon(name){return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]||ICONS.file}</svg>`;}
+
+/* ══════════════ ESTADO ══════════════ */
+let SESSION={token:null,profile:null,role:"Invitado"};
+const FAV_KEY="vxylog_favs";
+
+/* almacenamiento tolerante (no rompe si localStorage está bloqueado) */
+const store={
+  get(k){try{return JSON.parse(localStorage.getItem(k))||[]}catch(e){return this._m[k]||[]}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){this._m[k]=v}},
+  _m:{}
+};
+
+/* ══════════════ RENDER ══════════════ */
+const $=s=>document.querySelector(s);
+const allTools=()=>[
+  ...ERP_CONFIG.divisions.flatMap(d=>d.tools.map(t=>({...t,div:d.name,cls:d.cls}))),
+  ...ERP_CONFIG.shared.map(t=>({...t,div:"General",cls:"gen"}))
+];
+
+function statusTag(s){
+  if(s==="beta")return '<span class="tag beta">Beta</span>';
+  if(s==="soon")return '<span class="tag soon">Próximamente</span>';
+  return '<span class="tag live">Activo</span>';
+}
+function open(t){
+  if(t.status==="soon"||!t.url){toast(`“${t.name}” aún no está enlazada. Edita su <code>url</code> en ERP_CONFIG.`);return;}
+  window.location.href=t.url;
+}
+
+function renderChannels(){
+  $("#divCount").textContent=`${ERP_CONFIG.divisions.length} divisiones · ${ERP_CONFIG.divisions.reduce((a,d)=>a+d.tools.length,0)} herramientas`;
+  $("#channels").innerHTML=ERP_CONFIG.divisions.map(d=>`
+    <div class="channel ${d.cls}">
+      <div class="ch-head">
+        <span class="badge">${d.cls==="wave"?"División · señal":"División · agua"}</span>
+        <h2>${d.name}</h2>
+        <div class="d">${d.tagline}</div>
+      </div>
+      <div class="toolgrid">
+        ${d.tools.map(t=>toolCard(t)).join("")}
+        <button class="addtool" data-add="${d.id}">+ agregar herramienta</button>
+      </div>
+    </div>`).join("");
+}
+function toolCard(t){
+  const fav=store.get(FAV_KEY).includes(t.id);
+  const clickable=t.status!=="soon"&&t.url;
+  return `<div class="tool ${clickable?'live':'soon'}" data-tool="${t.id}" ${clickable?'role="button" tabindex="0"':''}>
+    <button class="fav ${fav?'on':''}" data-fav="${t.id}" title="Favorito" aria-label="Favorito">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="${fav?'currentColor':'none'}" stroke="currentColor" stroke-width="1.6"><path d="m12 2 3 6.5 7 .8-5 4.8 1.3 7-6.3-3.5L6 21l1.3-7-5-4.8 7-.8Z"/></svg>
+    </button>
+    <div class="ic">${icon(t.icon)}</div>
+    <div class="nm">${t.name}</div>
+    <div class="ds">${t.desc}</div>
+    <div style="margin-top:10px">${statusTag(t.status)}</div>
+  </div>`;
+}
+function renderShared(){
+  $("#shared").innerHTML=ERP_CONFIG.shared.map(t=>{
+    const clickable=t.status!=="soon"&&t.url;
+    return `<div class="mod ${clickable?'live':'soon'}" data-tool="${t.id}" ${clickable?'role="button" tabindex="0"':''}>
+      <div class="mi">${icon(t.icon)}</div>
+      <div><div class="mt">${t.name}${t.tag?` <span class="tag soon">${t.tag}</span>`:''}${t.status==='soon'?' <span class="tag soon">Próx.</span>':''}</div>
+      <div class="md">${t.desc}</div></div>
+    </div>`;
+  }).join("");
+}
+function renderFavs(){
+  const favs=store.get(FAV_KEY);
+  const map=Object.fromEntries(allTools().map(t=>[t.id,t]));
+  const items=favs.map(id=>map[id]).filter(Boolean);
+  $("#favChips").innerHTML = items.length
+    ? items.map(t=>`<button class="chip" data-tool="${t.id}">${icon(t.icon)} ${t.name}</button>`).join("")
+    : `<span class="chip empty">Sin favoritos — pulsa la ★ de una herramienta para fijarla aquí</span>`;
+}
+
+/* ══════════════ INTERACCIÓN ══════════════ */
+function bindGrid(){
+  document.body.addEventListener("click",e=>{
+    const fav=e.target.closest("[data-fav]");
+    if(fav){e.stopPropagation();toggleFav(fav.dataset.fav);return;}
+    const add=e.target.closest("[data-add]");
+    if(add){toast("Para agregar una herramienta, añade un objeto a <code>tools</code> de esa división en ERP_CONFIG.");return;}
+    const card=e.target.closest("[data-tool]");
+    if(card){const t=allTools().find(x=>x.id===card.dataset.tool);if(t)open(t);}
+  });
+  document.body.addEventListener("keydown",e=>{
+    if((e.key==="Enter"||e.key===" ")&&e.target.dataset&&e.target.dataset.tool){
+      e.preventDefault();const t=allTools().find(x=>x.id===e.target.dataset.tool);if(t)open(t);
+    }
+  });
+}
+function toggleFav(id){
+  const f=store.get(FAV_KEY);const i=f.indexOf(id);
+  if(i>=0)f.splice(i,1);else f.push(id);
+  store.set(FAV_KEY,f);
+  renderChannels();renderFavs();
+}
+
+/* búsqueda */
+function bindSearch(){
+  const inp=$("#search");
+  document.addEventListener("keydown",e=>{
+    if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();inp.focus();}
+  });
+  inp.addEventListener("input",()=>{
+    const q=inp.value.trim().toLowerCase();
+    document.querySelectorAll("[data-tool]").forEach(el=>{
+      const t=allTools().find(x=>x.id===el.dataset.tool);
+      const hit=!q||(t&&(t.name+t.desc+t.div).toLowerCase().includes(q));
+      el.style.display=hit?"":"none";
+    });
+  });
+}
+
+/* menú usuario */
+function bindMenus(){
+  const menu=$("#userMenu");
+  $("#userChip").addEventListener("click",e=>{e.stopPropagation();menu.hidden=!menu.hidden;});
+  document.addEventListener("click",e=>{if(!menu.contains(e.target)&&e.target.closest("#userChip")===null)menu.hidden=true;});
+  $("#signoutBtn").addEventListener("click",signOut);
+  $("#bellBtn").addEventListener("click",()=>toast("No hay anuncios nuevos."));
+  $("#helpBtn").addEventListener("click",()=>toast("Centro de ayuda — pendiente de enlazar."));
+  $("#openDrive").addEventListener("click",()=>{
+    const id=ERP_CONFIG.auth.DRIVE_FOLDER_ID;
+    if(id&&!id.startsWith("ID_"))window.open(`https://drive.google.com/drive/folders/${id}`,"_blank");
+    else toast("Configura DRIVE_FOLDER_ID en ERP_CONFIG.");
+  });
+}
+
+/* ══════════════ TOAST ══════════════ */
+function toast(html){
+  const w=$("#toasts");const t=document.createElement("div");t.className="toast";t.innerHTML=html;
+  w.appendChild(t);setTimeout(()=>{t.style.opacity="0";t.style.transition="opacity .3s";setTimeout(()=>t.remove(),300);},3600);
+}
+
+/* ══════════════ AUTENTICACIÓN + VERIFICACIÓN ══════════════ */
+let tokenClient=null;
+function stepState(name,state){
+  const el=document.querySelector(`.step[data-step="${name}"]`);if(!el)return;
+  el.classList.remove("active","done","fail");el.classList.add(state);
+  const sx=el.querySelector(".sx");
+  if(state==="active")sx.innerHTML='<span class="spin"></span>';
+  else if(state==="done")sx.innerHTML='✓';
+  else if(state==="fail")sx.innerHTML='✕';
+}
+function showGateError(title,body,acct){
+  $("#gateErrTitle").textContent=title;
+  $("#gateErrBody").textContent=body;
+  $("#gateErrAcct").textContent=acct||"";
+  $("#gateErr").hidden=false;
+  $("#switchAcct").hidden=false;
+  $("#signinBtn").disabled=false;
+  $("#signinLbl").textContent="Reintentar";
+}
+
+function initAuth(){
+  const cid=ERP_CONFIG.auth.CLIENT_ID;
+  if(cid.startsWith("TU_CLIENT_ID")){
+    // Modo DEMO: permite ver la interfaz sin OAuth configurado.
+    $("#gateHint").innerHTML='⚠ Modo demo — configura <b>CLIENT_ID</b> y <b>DRIVE_FOLDER_ID</b> en ERP_CONFIG.';
+    $("#signinLbl").textContent="Entrar en modo demo";
+    $("#signinBtn").addEventListener("click",()=>enterApp({name:"Usuario demo",email:"demo@vxylog",picture:null},true));
+    return;
+  }
+  tokenClient=google.accounts.oauth2.initTokenClient({
+    client_id:cid,
+    scope:"openid email profile https://www.googleapis.com/auth/drive.metadata.readonly",
+    callback:onToken
+  });
+  $("#signinBtn").addEventListener("click",()=>{
+    $("#gateErr").hidden=true;$("#signinBtn").disabled=true;
+    stepState("auth","active");
+    tokenClient.requestAccessToken({prompt:""});
+  });
+  $("#switchAcct").addEventListener("click",()=>{
+    $("#gateErr").hidden=true;
+    tokenClient.requestAccessToken({prompt:"select_account"});
+  });
+}
+
+async function onToken(resp){
+  if(resp.error){stepState("auth","fail");showGateError("Inicio cancelado","No se completó el acceso con Google.");return;}
+  SESSION.token=resp.access_token;
+  try{
+    // 1) Perfil
+    const u=await fetch("https://www.googleapis.com/oauth2/v3/userinfo",{headers:{Authorization:"Bearer "+SESSION.token}}).then(r=>r.json());
+    SESSION.profile={name:u.name||u.email,email:u.email,picture:u.picture};
+    stepState("auth","done");
+
+    // 2) Verificar acceso a la carpeta (Drive enforce la lista de permisos)
+    stepState("verify","active");
+    const fid=ERP_CONFIG.auth.DRIVE_FOLDER_ID;
+    const r=await fetch(`https://www.googleapis.com/drive/v3/files/${fid}?fields=id,name,capabilities/canEdit&supportsAllDrives=true`,
+                        {headers:{Authorization:"Bearer "+SESSION.token}});
+    if(r.status===200){
+      const f=await r.json();
+      SESSION.role = f.capabilities&&f.capabilities.canEdit ? "Editor" : "Lector";
+      stepState("verify","done");
+      stepState("load","active");
+      setTimeout(()=>enterApp(SESSION.profile,false,f.name),500);
+    }else{
+      stepState("verify","fail");
+      showGateError(
+        "Cuenta sin acceso",
+        "Esta cuenta no tiene permiso sobre la carpeta de la plataforma. Pide al administrador que te comparta la carpeta en Drive.",
+        SESSION.profile.email
+      );
+    }
+  }catch(err){
+    stepState("verify","fail");
+    showGateError("Error de verificación","No se pudo contactar a Google Drive. Revisa la conexión e inténtalo de nuevo.",SESSION.profile?.email||"");
+  }
+}
+
+function enterApp(profile,demo,folderName){
+  SESSION.profile=profile;
+  const role = demo? "Demo" : SESSION.role;
+  // top bar
+  const initials=(profile.name||"U").split(" ").map(s=>s[0]).slice(0,2).join("").toUpperCase();
+  if(profile.picture){$("#avatar").outerHTML=`<img id="avatar" src="${profile.picture}" alt="">`;}
+  else $("#avatar").textContent=initials;
+  $("#uName").textContent=profile.name;
+  $("#uRole").textContent=role;
+  $("#mName").textContent=profile.name;
+  $("#mEmail").textContent=profile.email;
+  $("#heroName").textContent=profile.name?`, ${profile.name.split(" ")[0]}`:"";
+
+  // readout
+  $("#vEnv").textContent=ERP_CONFIG.auth.ENV;
+  $("#ver").textContent=ERP_CONFIG.auth.VERSION;
+  $("#vSync").textContent=new Date().toLocaleString("es-CR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
+  if(demo){$("#vDrive").textContent="Modo demo";$("#pipDrive").className="pip warn";}
+  else if(folderName){$("#vDrive").textContent=folderName;}
+  // backend
+  if(ERP_CONFIG.auth.APPS_SCRIPT_URL){$("#vBackend").textContent="Conectado";$("#pipBackend").className="pip ok";}
+
+  // mostrar app
+  $("#gate").hidden=true;
+  $("#app").hidden=false;
+}
+
+function signOut(){
+  if(SESSION.token&&google.accounts?.oauth2)google.accounts.oauth2.revoke(SESSION.token,()=>{});
+  location.reload();
+}
+
+/* ══════════════ ARRANQUE ══════════════ */
+function boot(){
+  $("#yr").textContent=new Date().getFullYear();
+  renderChannels();renderShared();renderFavs();
+  bindGrid();bindSearch();bindMenus();
+  animateWave();
+  // esperar a GIS
+  const wait=setInterval(()=>{
+    if(window.google&&google.accounts){clearInterval(wait);initAuth();}
+  },120);
+  setTimeout(()=>{ // si GIS no carga (offline), igual permite demo si aplica
+    if(!window.google||!google.accounts){initAuth();}
+  },2500);
+}
+
+/* animación sutil del waveform (firma) — respeta reduced-motion */
+function animateWave(){
+  if(window.matchMedia("(prefers-reduced-motion:reduce)").matches)return;
+  const p=$("#wavePath");if(!p)return;let t=0;
+  (function frame(){
+    t+=0.03;let d="M0 60";
+    for(let x=0;x<=800;x+=20){const y=60+Math.sin((x/55)+t)*10*Math.cos(x/400+t/3);d+=` L${x} ${y.toFixed(1)}`;}
+    p.setAttribute("d",d);requestAnimationFrame(frame);
+  })();
+}
+
+document.addEventListener("DOMContentLoaded",boot);
+</script>
+</body>
+</html>
