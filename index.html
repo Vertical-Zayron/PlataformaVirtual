@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>V-Sayron · ERP</title>
+<title>V-Zayron · ERP</title>
 
 <!-- ════════════════════════════════════════════════════════════════
-     VERTICAL SAYRON — PÁGINA PRINCIPAL DEL ERP
+     VERTICAL ZAYRON — PÁGINA PRINCIPAL DEL ERP
      Archivo único para GitHub Pages. Backend: Google Apps Script + Drive.
      Auth: Google Identity Services. Verificación de acceso vía Drive API.
 
@@ -393,7 +393,7 @@ footer{margin-top:56px;border-top:1px solid var(--line);background:rgba(255,255,
         <rect x="26" y="6"  width="6" height="36" rx="2" fill="#16202c"/>
         <path d="M4 16 q6 -10 12 0 t12 0 t12 0" stroke="#16c6dc" stroke-width="2.4" fill="none" stroke-linecap="round"/>
       </svg>
-      <div class="a">Vertical Sayron</div>
+      <div class="a">Vertical Zayron</div>
       <div class="b">ERP · Plataforma interna</div>
     </div>
     <div class="body">
@@ -440,7 +440,7 @@ footer{margin-top:56px;border-top:1px solid var(--line);background:rgba(255,255,
         <rect x="26" y="6"  width="6" height="36" rx="2" fill="#16202c"/>
         <path d="M4 16 q6 -10 12 0 t12 0 t12 0" stroke="#16c6dc" stroke-width="2.4" fill="none" stroke-linecap="round"/>
       </svg>
-      <span class="wm"><span class="a">V-Sayron</span><span class="b">ERP</span></span>
+      <span class="wm"><span class="a">V-Zayron</span><span class="b">ERP</span></span>
     </a>
     <div class="sep"></div>
     <label class="searchbox">
@@ -477,7 +477,7 @@ footer{margin-top:56px;border-top:1px solid var(--line);background:rgba(255,255,
 
     <!-- HERO -->
     <section class="hero">
-      <div class="eyebrow">Plataforma interna · Vertical Sayron</div>
+      <div class="eyebrow">Plataforma interna · Vertical Zayron</div>
       <h1>Bienvenido<span id="heroName"></span> <em>— centro de herramientas</em></h1>
       <p class="sub">Acceso unificado a cotización, proyectos y portal de cliente para las divisiones WaveSense y Epsilon Water Technology.</p>
 
@@ -517,7 +517,7 @@ footer{margin-top:56px;border-top:1px solid var(--line);background:rgba(255,255,
 
   <footer>
     <div class="wrap foot">
-      <span class="fb">© <span id="yr"></span> Vertical Sayron</span>
+      <span class="fb">© <span id="yr"></span> Vertical Zayron</span>
       <span class="fb">·</span>
       <span class="fb mono" id="ver">erp v0.1.0</span>
       <span class="spacer"></span>
@@ -575,7 +575,7 @@ const ERP_CONFIG = {
         {id:"ws-cot-a", name:"Cotizador — Energy Monitor", desc:"Configurador y cotización del equipo Energy Monitor.", url:"https://wavesensecr.github.io/plataformaCotizacion/", icon:"calc", status:"live", popup:true},
         {id:"ws-cot-b", name:"Cotizador — Equipo B", desc:"Configurador y cotización del dispositivo B.", url:"", icon:"calc", status:"soon"},
         {id:"ws-cot-c", name:"Cotizador — Equipo C", desc:"Variante con lógica de transductores CT/VT.", url:"", icon:"wave", status:"soon"},
-        {id:"ws-energy", name:"Energy Monitor", desc:"Configurador de tableros + cotización multipágina.", url:"", icon:"chart", status:"soon"},
+        {id:"ws-energy", name:"Plataforma IoT", desc:"Plataforma general de monitoreo y gestión de dispositivos IoT.", url:"https://wavesensecr.github.io/IoTPlatform/", icon:"activity", status:"live"},
         {id:"ws-cat", name:"Catálogo técnico", desc:"Fichas, dimensiones y diagramas SVG de equipos.", url:"", icon:"book", status:"soon"}
       ]
     },
@@ -623,7 +623,7 @@ function icon(name){return `<svg width="20" height="20" viewBox="0 0 24 24" fill
 
 /* ══════════════ ESTADO ══════════════ */
 let SESSION={token:null,profile:null,role:"Invitado"};
-const FAV_KEY="vsayron_favs";
+const FAV_KEY="vzayron_favs";
 
 /* almacenamiento tolerante (no rompe si localStorage está bloqueado) */
 const store={
@@ -649,7 +649,7 @@ function launchTool(t){
   const href=toolHref(t);
   if(t.status==="soon"||!href){toast(`“${t.name}” aún no está enlazada. Edita su <code>url</code> en ERP_CONFIG.`);return;}
   if(t.popup){openAppModal(t,href);return;}
-  window.location.href=href;
+  window.open(href,"_blank","noopener");
 }
 function openAppModal(t,href){
   const bd=document.createElement("div");bd.className="appmodal-backdrop";bd.id="appModal";
@@ -780,7 +780,7 @@ function toast(html){
 
 /* ══════════════ AUTENTICACIÓN + VERIFICACIÓN ══════════════ */
 /* Sesión cacheada: token+perfil compartidos entre herramientas del mismo sitio */
-const AUTH_KEY="sayron_gauth",HINT_KEY="sayron_hint";
+const AUTH_KEY="zayron_gauth",HINT_KEY="zayron_hint";
 function saveAuth(token,expiresIn,profile){try{localStorage.setItem(AUTH_KEY,JSON.stringify({token,exp:Date.now()+(((expiresIn||3600)-60)*1000),profile}));}catch(e){}}
 function loadAuth(){try{const a=JSON.parse(localStorage.getItem(AUTH_KEY));if(a&&a.token&&a.exp>Date.now())return a;}catch(e){}return null;}
 function clearAuth(){try{localStorage.removeItem(AUTH_KEY);}catch(e){}}
@@ -811,7 +811,7 @@ function initAuth(){
     // Modo DEMO: permite ver la interfaz sin OAuth configurado.
     $("#gateHint").innerHTML='⚠ Modo demo — configura <b>CLIENT_ID</b> y <b>DRIVE_FOLDER_ID</b> en ERP_CONFIG.';
     $("#signinLbl").textContent="Entrar en modo demo";
-    $("#signinBtn").addEventListener("click",()=>enterApp({name:"Usuario demo",email:"demo@vsayron",picture:null},true));
+    $("#signinBtn").addEventListener("click",()=>enterApp({name:"Usuario demo",email:"demo@vzayron",picture:null},true));
     return;
   }
   // El login de Google requiere http(s); desde file:// el popup se bloquea.
