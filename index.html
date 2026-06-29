@@ -544,8 +544,8 @@ const SITE={
   // URLs absolutas en Pages:
   hub:       "https://vertical-zayron.github.io/PlataformaVirtual/",
   contactos: "https://vertical-zayron.github.io/contactos/",
-  proyectos:   "",
-  cotizaciones:""
+  proyectos:   "https://vertical-zayron.github.io/Proyectos/",
+  cotizaciones:"https://vertical-zayron.github.io/Cotizaciones/"
 };
 
 /* ══════════════════════════════════════════════════════════════════
@@ -651,6 +651,7 @@ function launchTool(t){
   const href=toolHref(t);
   if(t.status==="soon"||!href){toast(`“${t.name}” aún no está enlazada. Edita su <code>url</code> en ERP_CONFIG.`);return;}
   if(t.popup){openAppModal(t,href);return;}
+  if(t.cls==="gen"){window.location.href=href;return;}   // General y administración: misma pestaña
   window.open(href,"_blank","noopener");
 }
 function openAppModal(t,href){
