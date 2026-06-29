@@ -546,7 +546,8 @@ const SITE={
   contactos: "https://vertical-zayron.github.io/contactos/",
   proyectos:   "https://vertical-zayron.github.io/Proyectos/",
   cotizaciones:"https://vertical-zayron.github.io/Cotizaciones/",
-  catalogo:    "https://vertical-zayron.github.io/CatalogoProductos/"
+  catalogo:    "https://vertical-zayron.github.io/CatalogoProductos/",
+  tienda:      "https://vertical-zayron.github.io/Tienda/"
 };
 
 /* ══════════════════════════════════════════════════════════════════
@@ -595,7 +596,7 @@ const ERP_CONFIG = {
 
   /* ---- Módulos transversales ---- */
   shared:[
-    {id:"clientes", name:"Portal de cliente", desc:"Vista pública: productos y solicitud de cotización.", url:"", icon:"store", status:"soon", tag:"Externo"},
+    {id:"clientes", name:"Tienda / Portal de cliente", desc:"Sitio público con los productos. El cliente navega y solicita cotización (backend independiente).", url:"tienda.html", urlPages:SITE.tienda, icon:"store", status:"live", tag:"Público", newtab:true},
     {id:"proyectos", name:"Proyectos", desc:"Proyectos con clientes, cotizaciones, documentos y carpeta de fotos en Drive.", url:"proyectos.html", urlPages:SITE.proyectos, icon:"layers", status:"live"},
     {id:"galeria", name:"Galería de fotos", desc:"Documentación fotográfica vinculada a Drive.", url:"", icon:"image", status:"soon"},
     {id:"cotizaciones", name:"Cotizaciones", desc:"Tablero por estado con sección de inactivas (+30 días) y líneas de producto.", url:"cotizaciones.html", urlPages:SITE.cotizaciones, icon:"file", status:"live"},
@@ -653,6 +654,7 @@ function launchTool(t){
   const href=toolHref(t);
   if(t.status==="soon"||!href){toast(`“${t.name}” aún no está enlazada. Edita su <code>url</code> en ERP_CONFIG.`);return;}
   if(t.popup){openAppModal(t,href);return;}
+  if(t.newtab){window.open(href,"_blank","noopener");return;} // forzar pestaña nueva (sitios públicos/externos)
   if(t.cls==="gen"){window.location.href=href;return;}   // General y administración: misma pestaña
   window.open(href,"_blank","noopener");
 }
