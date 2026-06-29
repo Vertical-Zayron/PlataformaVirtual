@@ -543,7 +543,9 @@ const SITE={
   isPages: location.hostname.endsWith("github.io"),
   // URLs absolutas en Pages:
   hub:       "https://vertical-zayron.github.io/PlataformaVirtual/",
-  contactos: "https://vertical-zayron.github.io/contactos/"
+  contactos: "https://vertical-zayron.github.io/contactos/",
+  proyectos:   "",
+  cotizaciones:""
 };
 
 /* ══════════════════════════════════════════════════════════════════
@@ -593,9 +595,9 @@ const ERP_CONFIG = {
   /* ---- Módulos transversales ---- */
   shared:[
     {id:"clientes", name:"Portal de cliente", desc:"Vista pública: productos y solicitud de cotización.", url:"", icon:"store", status:"soon", tag:"Externo"},
-    {id:"proyectos", name:"Proyectos", desc:"Lista de proyectos con galería de fotos, cotizaciones y documentos.", url:"", icon:"layers", status:"soon"},
+    {id:"proyectos", name:"Proyectos", desc:"Proyectos con clientes, cotizaciones, documentos y carpeta de fotos en Drive.", url:"proyectos.html", urlPages:SITE.proyectos, icon:"layers", status:"live"},
     {id:"galeria", name:"Galería de fotos", desc:"Documentación fotográfica vinculada a Drive.", url:"", icon:"image", status:"soon"},
-    {id:"cotizaciones", name:"Cotizaciones", desc:"Registro central y seguimiento de cotizaciones emitidas.", url:"", icon:"file", status:"soon"},
+    {id:"cotizaciones", name:"Cotizaciones", desc:"Tablero por estado con sección de inactivas (+30 días) y líneas de producto.", url:"cotizaciones.html", urlPages:SITE.cotizaciones, icon:"file", status:"live"},
     {id:"clientes-db", name:"Clientes & contactos", desc:"Clientes, proveedores y prospectos, agrupados por empresa.", url:"contactos.html", urlPages:SITE.contactos, icon:"users", status:"live"},
     {id:"reportes", name:"Reportes & tableros", desc:"Indicadores de ventas, proyectos y producción.", url:"", icon:"chart", status:"soon"},
     {id:"admin", name:"Administración", desc:"Usuarios, permisos de carpeta y parámetros del sistema.", url:"", icon:"shield", status:"soon", tag:"Admin"},
